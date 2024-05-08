@@ -4,11 +4,10 @@
   "private": true,
   "main": "dist/collector.js",
   "scripts": {
-    "collector": "node dist/collector.js",
-    "server": "node dist/server.js",
+    "collector": "npm run prepare && node dist/collector.js",
+    "server": "npm run prepare && node dist/server.js",
     "server:watch": "nodemon",
-    "log_server": "node dist/log_server.js",
-    "data_patcher": "node dist/data_patcher.js",
+    "log_server": "npm run prepare && node dist/log_server.js",
     "lint": "eslint './src/**/*.ts'",
     "lint-windows": "eslint ./src/**/*.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -17,7 +16,7 @@
     "compile": "tsc -p .",
     "fix": "gts fix",
     "prepare": "npm run compile",
-    "flush": "rm -fr db.sqlite3* shardeum.sqlite*"
+    "flush": "rm -fr db.sqlite3* shardeum.sqlite* data-logs/"
   },
   "dependencies": {
     "@ethereumjs/block": "^5.0.0",
