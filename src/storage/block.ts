@@ -1,4 +1,4 @@
-import { bigIntToHex, bytesToHex } from '@ethereumjs/util'
+import { Address, bigIntToHex, bytesToHex } from '@ethereumjs/util'
 import { config } from '../config'
 import * as db from './sqlite3storage'
 import { Block as EthBlock } from '@ethereumjs/block'
@@ -7,6 +7,8 @@ import { Cycle, DbBlock } from '../types'
 import { getLatestBlock } from '../cache/LatestBlockCache'
 import { blockQueryDelayInMillis } from '../utils/block'
 import { queryTransactionsByBlock } from './transaction'
+import * as RLP from '@ethereumjs/rlp'
+import { BaseTrie } from 'merkle-patricia-tree'
 
 const evmCommon = new Common({ chain: 'mainnet', hardfork: Hardfork.Istanbul, eips: [3855] })
 
@@ -65,12 +67,12 @@ export async function upsertBlocksForCycleCore(
     const newBlockTimestampInSecond =
       startTimeInSeconds +
       (blockNumber - config.blockIndexing.initBlockNumber - firstBlockNumberForCycle) *
-        config.blockIndexing.blockProductionRate
+      config.blockIndexing.blockProductionRate
     const newBlockTimestamp = newBlockTimestampInSecond * 1000
     const block = createNewBlock(blockNumber, newBlockTimestamp)
     /*prettier-ignore*/ if (config.verbose) console.log(`Block number: ${block.header.number}, timestamp: ${block.header.timestamp}, hash: ${bytesToHex(block.header.hash())}`)
     try {
-      const readableBlock = await convertToReadableBlock(block)
+      const readableBlock = await convertToReadableBlock(blockNumber, newBlockTimestamp)
       await insertBlock({
         number: Number(block.header.number),
         numberHex: '0x' + block.header.number.toString(16),
@@ -161,7 +163,11 @@ export function createNewBlock(blockNumber: number, timestamp: number): EthBlock
   return block
 }
 
-async function convertToReadableBlock(block: EthBlock): Promise<ShardeumBlockOverride> {
+async function convertToReadableBlock(
+  blockNumber: number,
+  timestamp: number
+): Promise<ShardeumBlockOverride> {
+  const timestampInSecond = timestamp ? Math.round(timestamp / 1000) : Math.round(Date.now() / 1000)
   const defaultBlock = {
     difficulty: '0x4ea3f27bc',
     extraData: '0x476574682f4c5649562f76312e302e302f6c696e75782f676f312e342e32',
@@ -185,29 +191,50 @@ async function convertToReadableBlock(block: EthBlock): Promise<ShardeumBlockOve
     transactionsRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
     uncles: [],
   }
+  const correctParentHash = blockNumber == 0 ? defaultBlock.parentHash : (await queryBlockByNumberWithoutDelay(blockNumber - 1)).hash
+  const rawTransactions = await queryTransactionsByBlock(blockNumber, null)
+  const transactions = rawTransactions.map((tx) => tx.txHash)
+  const headerObject = {
+    parentHash: correctParentHash,
+    number: '0x' + blockNumber.toString(16),
+    timestamp: timestampInSecond,
+    uncleHash: defaultBlock.sha3Uncles,
+    coinbase: Address.fromString(defaultBlock.miner),
+    stateRoot: defaultBlock.stateRoot,
+    transactionsTrie: await calculateTransactionRoot(transactions),
+    receiptTrie: defaultBlock.receiptsRoot,
+    logsBloom: defaultBlock.logsBloom,
+    difficulty: defaultBlock.difficulty,
+    gasLimit: defaultBlock.gasLimit,
+    gasUsed: defaultBlock.gasUsed,
+    extraData: defaultBlock.extraData,
+    mixHash: defaultBlock.mixHash,
+    nonce: defaultBlock.nonce
+  }
+  const blockData = {
+    header: headerObject,
+    transactions: [],
+    uncleHeaders: [],
+  }
+  const block = EthBlock.fromBlockData(blockData, { common: evmCommon, skipConsensusFormatValidation: true })
+  defaultBlock.parentHash = bytesToHex(block.header.parentHash)
   defaultBlock.number = bigIntToHex(block.header.number)
   defaultBlock.timestamp = bigIntToHex(block.header.timestamp)
   defaultBlock.hash = bytesToHex(block.header.hash())
-  const previousBlockNumber = Number(block.header.number) - 1
-
-  let parentHash = '0x0000000000000000000000000000000000000000000000000000000000000000'
-  const previousBlockFromDB = await queryBlockByNumber(Number(previousBlockNumber))
-  if (Number(block.header.number) === 0) {
-    // No parent for genesis block
-  } else if (previousBlockFromDB) {
-    parentHash = previousBlockFromDB.hash
-  } else {
-    /*prettier-ignore*/ if (config.verbose) console.log(`block: convertToReadableBlock: Block timestamp ${block.header.timestamp}`)
-    /*prettier-ignore*/ if (config.verbose) console.log(`block: convertToReadableBlock: Unable to find previous block ${previousBlockNumber} in database, creating a new one`)
-    /*prettier-ignore*/ if (config.verbose) console.log(`block: convertToReadableBlock: Creating previous block ${previousBlockNumber} with timestamp ${(Number(block.header.timestamp) - config.blockIndexing.blockProductionRate) * 1000}`)
-    const previousBlock = createNewBlock(
-      previousBlockNumber,
-      (Number(block.header.timestamp) - config.blockIndexing.blockProductionRate) * 1000
-    )
-    parentHash = bytesToHex(previousBlock.header.hash())
-  }
-  defaultBlock.parentHash = parentHash
   return defaultBlock as unknown as ShardeumBlockOverride
+}
+
+async function calculateTransactionRoot(txns: string[]): Promise<string> {
+  const trie = new BaseTrie()
+  for (let i = 0; i < txns.length; i++) {
+    // i now is also the transactionIndex of transaction in the block
+    // eslint-disable-next-line security/detect-object-injection
+    const currTxnHash = txns[i]
+    const path = Buffer.from(RLP.encode(i))
+    await trie.put(path, Buffer.from(currTxnHash))
+  }
+  const evaluatedTxnRoot = '0x' + trie.root.toString('hex')
+  return evaluatedTxnRoot
 }
 
 export async function queryBlockCount(): Promise<number> {

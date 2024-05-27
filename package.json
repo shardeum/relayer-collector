@@ -60,7 +60,8 @@
     "sqlite3": "5.1.6",
     "ts-node": "10.9.1",
     "ts-node-dev": "2.0.0",
-    "web3": "4.0.2"
+    "web3": "4.0.2",
+    "merkle-patricia-tree": "4.2.4"
   },
   "devDependencies": {
     "@types/fastify-cors": "2.1.0",
