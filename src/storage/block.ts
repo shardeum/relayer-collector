@@ -6,6 +6,7 @@ import { Common, Hardfork } from '@ethereumjs/common'
 import { Cycle, DbBlock } from '../types'
 import { getLatestBlock } from '../cache/LatestBlockCache'
 import { blockQueryDelayInMillis } from '../utils/block'
+import { queryTransactionsByBlock } from './transaction'
 
 const evmCommon = new Common({ chain: 'mainnet', hardfork: Hardfork.Istanbul, eips: [3855] })
 
@@ -83,6 +84,17 @@ export async function upsertBlocksForCycleCore(
     }
   }
   /*prettier-ignore*/ if (config.verbose) console.log(`block: Successfully created ${numBlocksPerCycle} blocks for cycle ${cycleCounter}`)
+}
+
+async function queryBlockByNumberWithoutDelay(blockNumber: number): Promise<DbBlock | null> {
+  try {
+    const sql = 'SELECT * FROM blocks WHERE number = ?'
+    const values = [blockNumber]
+    const block: DbBlock = await db.get(sql, values)
+    return block
+  } catch (e) {
+    return null
+  }
 }
 
 export async function queryBlockByNumber(blockNumber: number): Promise<DbBlock | null> {
