@@ -73,10 +73,11 @@ export async function upsertBlocksForCycleCore(
     /*prettier-ignore*/ if (config.verbose) console.log(`Block number: ${block.header.number}, timestamp: ${block.header.timestamp}, hash: ${bytesToHex(block.header.hash())}`)
     try {
       const readableBlock = await convertToReadableBlock(blockNumber, newBlockTimestamp)
+      // console.log("before insertBlock to DB readableBlock.hash.toString()", readableBlock.hash.toString())
       await insertBlock({
         number: Number(block.header.number),
         numberHex: '0x' + block.header.number.toString(16),
-        hash: bytesToHex(block.header.hash()),
+        hash: readableBlock.hash.toString(), //bytesToHex(block.header.hash()),
         timestamp: newBlockTimestamp,
         cycle: cycleCounter,
         readableBlock: JSON.stringify(readableBlock),
@@ -191,9 +192,11 @@ async function convertToReadableBlock(
     transactionsRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
     uncles: [],
   }
-  const correctParentHash = blockNumber == 0 ? defaultBlock.parentHash : (await queryBlockByNumberWithoutDelay(blockNumber - 1)).hash
+  const correctParentHash =
+    blockNumber == 0 ? defaultBlock.parentHash : (await queryBlockByNumberWithoutDelay(blockNumber - 1)).hash
   const rawTransactions = await queryTransactionsByBlock(blockNumber, null)
   const transactions = rawTransactions.map((tx) => tx.txHash)
+  const txRoot = await calculateTransactionRoot(transactions)
   const headerObject = {
     parentHash: correctParentHash,
     number: '0x' + blockNumber.toString(16),
@@ -201,7 +204,7 @@ async function convertToReadableBlock(
     uncleHash: defaultBlock.sha3Uncles,
     coinbase: Address.fromString(defaultBlock.miner),
     stateRoot: defaultBlock.stateRoot,
-    transactionsTrie: await calculateTransactionRoot(transactions),
+    transactionsTrie: txRoot,
     receiptTrie: defaultBlock.receiptsRoot,
     logsBloom: defaultBlock.logsBloom,
     difficulty: defaultBlock.difficulty,
@@ -209,18 +212,23 @@ async function convertToReadableBlock(
     gasUsed: defaultBlock.gasUsed,
     extraData: defaultBlock.extraData,
     mixHash: defaultBlock.mixHash,
-    nonce: defaultBlock.nonce
+    nonce: defaultBlock.nonce,
   }
+  // console.log("headerObject", headerObject)
   const blockData = {
     header: headerObject,
     transactions: [],
     uncleHeaders: [],
   }
+  console.log("blockData", blockData)
   const block = EthBlock.fromBlockData(blockData, { common: evmCommon, skipConsensusFormatValidation: true })
   defaultBlock.parentHash = bytesToHex(block.header.parentHash)
   defaultBlock.number = bigIntToHex(block.header.number)
   defaultBlock.timestamp = bigIntToHex(block.header.timestamp)
   defaultBlock.hash = bytesToHex(block.header.hash())
+  defaultBlock.transactions = transactions
+  defaultBlock.transactionsRoot = txRoot
+  // console.log("HASH OF DEFAULT ", defaultBlock.hash)
   return defaultBlock as unknown as ShardeumBlockOverride
 }
 
