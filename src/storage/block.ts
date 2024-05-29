@@ -73,11 +73,10 @@ export async function upsertBlocksForCycleCore(
     /*prettier-ignore*/ if (config.verbose) console.log(`Block number: ${block.header.number}, timestamp: ${block.header.timestamp}, hash: ${bytesToHex(block.header.hash())}`)
     try {
       const readableBlock = await convertToReadableBlock(blockNumber, newBlockTimestamp)
-      // console.log("before insertBlock to DB readableBlock.hash.toString()", readableBlock.hash.toString())
       await insertBlock({
         number: Number(block.header.number),
         numberHex: '0x' + block.header.number.toString(16),
-        hash: readableBlock.hash.toString(), //bytesToHex(block.header.hash()),
+        hash: readableBlock.hash.toString(),
         timestamp: newBlockTimestamp,
         cycle: cycleCounter,
         readableBlock: JSON.stringify(readableBlock),
@@ -214,13 +213,11 @@ async function convertToReadableBlock(
     mixHash: defaultBlock.mixHash,
     nonce: defaultBlock.nonce,
   }
-  // console.log("headerObject", headerObject)
   const blockData = {
     header: headerObject,
     transactions: [],
     uncleHeaders: [],
   }
-  console.log("blockData", blockData)
   const block = EthBlock.fromBlockData(blockData, { common: evmCommon, skipConsensusFormatValidation: true })
   defaultBlock.parentHash = bytesToHex(block.header.parentHash)
   defaultBlock.number = bigIntToHex(block.header.number)
@@ -228,7 +225,6 @@ async function convertToReadableBlock(
   defaultBlock.hash = bytesToHex(block.header.hash())
   defaultBlock.transactions = transactions
   defaultBlock.transactionsRoot = txRoot
-  // console.log("HASH OF DEFAULT ", defaultBlock.hash)
   return defaultBlock as unknown as ShardeumBlockOverride
 }
 
