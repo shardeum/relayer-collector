@@ -1338,6 +1338,22 @@ const start = async (): Promise<void> => {
   })
 
   server.get('/api/blocks', async (_request, reply) => {
+    const count = _request.query['count']
+    if (count) {
+      const blockCount = parseInt(count)
+      if (blockCount <= 0 || Number.isNaN(blockCount)) {
+        reply.send({ success: false, error: 'Invalid count' })
+        return
+      }
+      if (count > 100) {
+        reply.send({ success: false, error: 'The count number is too big.' })
+        return
+      }
+      const totalBlocks = await Block.queryBlockCount()
+      const blocks = await Block.queryLatestBlocks(blockCount)
+      reply.send({ success: true, blocks, totalBlocks })
+      return
+    }
     /*prettier-ignore*/ if (CONFIG.verbose) console.log('/api/blocks: Request received')
     const blockNumberHex = _request.query['numberHex']?.toLowerCase()
     /*prettier-ignore*/ if (CONFIG.verbose) console.log(`/api/blocks: blockNumberHex: ${blockNumberHex}`)
