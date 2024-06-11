@@ -7,6 +7,7 @@ import { setupCollectorListener } from './log_subscription/CollectorListener'
 import { evmLogSubscriptionHandler } from './log_subscription/Handler'
 import { removeLogSubscriptionBySocketId } from './log_subscription/SocketManager'
 import * as Storage from './storage'
+import { Utils as StringUtils } from '@shardus/types'
 
 const start = async (): Promise<void> => {
   // Init dependencies
@@ -62,11 +63,11 @@ const evmLogSubscriptionController = (connection: SocketStream): void => {
 
   connection.socket.on('message', (message) => {
     try {
-      const payload = JSON.parse(message.toString())
+      const payload = StringUtils.safeJsonParse(message.toString())
       evmLogSubscriptionHandler.onMessage(connection, payload, socketId)
       return
     } catch (e) {
-      connection.socket.send(JSON.stringify({ error: e.message }))
+      connection.socket.send(StringUtils.safeStringify({ error: e.message }))
       return
     }
   })

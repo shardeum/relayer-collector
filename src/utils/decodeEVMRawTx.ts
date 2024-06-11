@@ -2,6 +2,7 @@ import { TransactionFactory, Transaction, TransactionType } from '@ethereumjs/tx
 import { bytesToHex, toAscii, toBytes } from '@ethereumjs/util'
 import { RawTxData } from '../types'
 import { config } from '../config'
+import { Utils as StringUtils } from '@shardus/types'
 
 export type TransactionObj =
   | Transaction[TransactionType.Legacy]
@@ -50,7 +51,7 @@ export type StakeTxBlobFromEVMTx =
 export function getStakeTxBlobFromEVMTx(transaction: StakeTxBlobFromEVMTx): unknown {
   try {
     const stakeTxString = toAscii(bytesToHex(transaction.data))
-    return JSON.parse(stakeTxString)
+    return StringUtils.safeJsonParse(stakeTxString)
   } catch (e) {
     console.log('Unable to get stakeTxBlobFromEVMTx', e)
   }

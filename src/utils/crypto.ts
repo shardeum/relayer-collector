@@ -18,7 +18,7 @@ export const hashObj = core.hashObj
 export type SignedMessage = SignedObject
 
 export function sign<T>(obj: T): T & SignedObject {
-  const objCopy = JSON.parse(core.stringify(obj))
+  const objCopy = StringUtils.safeJsonParse(StringUtils.safeStringify(obj))
   core.signObj(objCopy, COLLECTOR_CONFIG.collectorInfo.secretKey, COLLECTOR_CONFIG.collectorInfo.publicKey)
   return objCopy
 }
