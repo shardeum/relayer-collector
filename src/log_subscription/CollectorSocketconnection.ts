@@ -2,6 +2,7 @@ import { Server, Socket } from 'socket.io'
 import { Data } from '../class/validateData'
 import { config as CONFIG } from '../config'
 import { Receipt } from '../types'
+import { Utils as StringUtils } from '@shardus/types'
 
 // constants
 const ConnectionEvent = 'connection'
@@ -36,14 +37,14 @@ export const setupCollectorSocketServer = (): void => {
 
 export const forwardCycleData = async (data: Data): Promise<void> => {
   for (const socket of registeredLogServers.values()) {
-    socket.emit(CycleDataWsEvent, data)
+    socket.emit(CycleDataWsEvent, StringUtils.safeStringify(data))
   }
   console.log(`Forwarded cycle data to ${registeredLogServers.size} LogServers`)
 }
 
 export const forwardReceiptData = async (data: Receipt[]): Promise<void> => {
   for (const socket of registeredLogServers.values()) {
-    socket.emit(ReceiptDataWsEvent, data)
+    socket.emit(ReceiptDataWsEvent, StringUtils.safeStringify(data))
   }
   /* prettier-ignore */ if (CONFIG.verbose) console.log(`Forwarded receipt data to ${registeredLogServers.size} LogServers`)
 }
