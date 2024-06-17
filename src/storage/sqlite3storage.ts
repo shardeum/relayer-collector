@@ -25,7 +25,7 @@ export async function init(config: DbOptions): Promise<void> {
     console.log('Shardeum indexer database initialized.')
   }
   db.on('profile', (sql, time) => {
-    if (time > 500) {
+    if (time > 500 && time < 1000) {
       console.log('SLOW QUERY', sql, time)
     } else if (time > 1000) {
       console.log('VERY SLOW QUERY', sql, time)
