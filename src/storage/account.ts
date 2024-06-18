@@ -194,7 +194,8 @@ export async function queryAccountByAccountId(accountId: string): Promise<Accoun
     const sql = `SELECT * FROM accounts WHERE accountId=?`
     const account: DbAccount = await db.get(sql, [accountId])
     if (account) account.account = StringUtils.safeJsonParse(account.account)
-    if (account && account.contractInfo) account.contractInfo = StringUtils.safeJsonParse(account.contractInfo)
+    if (account && account.contractInfo)
+      account.contractInfo = StringUtils.safeJsonParse(account.contractInfo)
     if (config.verbose) console.log('Account accountId', account)
     return account as Account
   } catch (e) {
@@ -211,7 +212,8 @@ export async function queryAccountByAddress(
     const sql = `SELECT * FROM accounts WHERE accountType=? AND ethAddress=? ORDER BY accountType ASC LIMIT 1`
     const account: DbAccount = await db.get(sql, [accountType, address])
     if (account) account.account = StringUtils.safeJsonParse(account.account)
-    if (account && account.contractInfo) account.contractInfo = StringUtils.safeJsonParse(account.contractInfo)
+    if (account && account.contractInfo)
+      account.contractInfo = StringUtils.safeJsonParse(account.contractInfo)
     if (config.verbose) console.log('Account Address', account)
     return account as Account
   } catch (e) {
@@ -248,8 +250,10 @@ export async function queryAccountsBetweenCycles(
     const sql = `SELECT * FROM accounts WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
     accounts = await db.all(sql, [startCycleNumber, endCycleNumber])
     accounts.forEach((account: DbAccount) => {
-      if (account.account) (account as Account).account = StringUtils.safeJsonParse(account.account) as WrappedEVMAccount
-      if (account.contractInfo) (account as Account).contractInfo = StringUtils.safeJsonParse(account.contractInfo)
+      if (account.account)
+        (account as Account).account = StringUtils.safeJsonParse(account.account) as WrappedEVMAccount
+      if (account.contractInfo)
+        (account as Account).contractInfo = StringUtils.safeJsonParse(account.contractInfo)
     })
   } catch (e) {
     console.log(e)
@@ -360,6 +364,7 @@ export async function processAccountData(accounts: AccountCopy[]): Promise<Accou
     ) {
       accObj.ethAddress = account.data.ethAddress.toLowerCase()
       if (
+        config.processData.decodeContractInfo &&
         accountType === AccountType.Account &&
         'account' in accObj.account &&
         bytesToHex(Uint8Array.from(Object.values(accObj.account.account.codeHash))) !== EOA_CodeHash
