@@ -72,6 +72,7 @@ export interface Config {
   }
   saveAccountHistoryState: boolean
   collectorMode: string
+  storeReceiptBeforeStates: boolean
 }
 
 let config: Config = {
@@ -132,6 +133,7 @@ let config: Config = {
   },
   saveAccountHistoryState: true,
   collectorMode: process.env.COLLECTOR_MODE || collectorMode.WS.toString(),
+  storeReceiptBeforeStates: false,
 }
 
 let DISTRIBUTOR_URL = `http://${config.distributorInfo.ip}:${config.distributorInfo.port}`

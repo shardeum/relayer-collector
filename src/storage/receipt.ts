@@ -77,10 +77,14 @@ export async function processReceiptData(receipts: Receipt[], saveOnlyNewData = 
     if (receiptsMap.has(tx.txId) && receiptsMap.get(tx.txId) === timestamp) {
       continue
     }
+    let modifiedReceiptObj = {
+      ...receiptObj,
+      beforeStateAccounts: config.storeReceiptBeforeStates ? receiptObj.beforeStateAccounts : [],
+    }
     if (saveOnlyNewData) {
       const receiptExist = await queryReceiptByReceiptId(tx.txId)
-      if (!receiptExist) combineReceipts.push(receiptObj as unknown as Receipt)
-    } else combineReceipts.push(receiptObj as unknown as Receipt)
+      if (!receiptExist) combineReceipts.push(modifiedReceiptObj as unknown as Receipt)
+    } else combineReceipts.push(modifiedReceiptObj as unknown as Receipt)
     let txReceipt: WrappedAccount = appReceiptData
     receiptsMap.set(tx.txId, tx.timestamp)
 
