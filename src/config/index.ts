@@ -36,7 +36,7 @@ export interface Config {
     port: string
     publicKey: string
   }
-  postgres_enabled: boolean
+  postgresEnabled: boolean
   pgDefaultDBConnectionString: string
   rpcUrl: string
   apiUrl: string
@@ -98,7 +98,7 @@ let config: Config = {
     port: process.env.DISTRIBUTOR_PORT || '6100',
     publicKey: '',
   },
-  postgres_enabled: process.env.PG_ENABLED === 'true',
+  postgresEnabled: process.env.PG_ENABLED === 'true',
   pgDefaultDBConnectionString: process.env.PG_DEFAULT_DB_CONNECTION_STRING || 'postgresql://localhost/shardeum_default&user=root&password=password',
   rpcUrl: 'http://127.0.0.1:8080',
   apiUrl: '',
