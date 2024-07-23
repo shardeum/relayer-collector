@@ -36,6 +36,8 @@ export interface Config {
     port: string
     publicKey: string
   }
+  postgres_enabled: boolean
+  pgDefaultDBConnectionString: string
   rpcUrl: string
   apiUrl: string
   verbose: boolean
@@ -54,6 +56,7 @@ export interface Config {
   findTxHashInOriginalTx: boolean
   enableShardeumIndexer: boolean
   shardeumIndexerSqlitePath: string
+  pgShardeumIndexerDBConnectionString: string
   blockIndexing: {
     enabled: boolean
     blockProductionRate: number
@@ -95,6 +98,8 @@ let config: Config = {
     port: process.env.DISTRIBUTOR_PORT || '6100',
     publicKey: '',
   },
+  postgres_enabled: process.env.PG_ENABLED === 'true',
+  pgDefaultDBConnectionString: process.env.PG_DEFAULT_DB_CONNECTION_STRING || 'postgresql://localhost/shardeum_default&user=root&password=password',
   rpcUrl: 'http://127.0.0.1:8080',
   apiUrl: '',
   verbose: false,
@@ -113,6 +118,7 @@ let config: Config = {
   findTxHashInOriginalTx: false,
   enableShardeumIndexer: true,
   shardeumIndexerSqlitePath: '/home/shardeumcoredev/test_net/ldrpc/shardeum/db/shardeum.sqlite',
+  pgShardeumIndexerDBConnectionString: process.env.PG_SHARDEUM_INDEXER_CONNECTION_STRING || 'postgresql://localhost/shardeum_indexer&user=root&password=password',
   blockIndexing: {
     enabled: true,
     blockProductionRate: 6,
