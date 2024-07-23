@@ -8,12 +8,10 @@ const pgShardeumIndexerDBClient = new Client({ connectionString: config.pgSharde
 export type DbName = 'default' | 'shardeumIndexer'
 
 export interface DbOptions {
-  defaultDbSqlitePath: string
   enableShardeumIndexer: boolean
-  shardeumIndexerSqlitePath: string
 }
 
-export async function init(): Promise<void> {
+export async function init(config: { enableShardeumIndexer: boolean }): Promise<void> {
   await pgDefaultDBClient.connect()
   pgDefaultDBClient.on('error', (err) => {
     console.error('default PG DB encountered an error', err.stack)
