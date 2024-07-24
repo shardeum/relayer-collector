@@ -112,7 +112,7 @@ let config: Config = {
   enableTxHashCache: false,
   findTxHashInOriginalTx: false,
   enableShardeumIndexer: true,
-  shardeumIndexerSqlitePath: '/home/shardeumcoredev/test_net/ldrpc/shardeum/db/shardeum.sqlite',
+  shardeumIndexerSqlitePath: 'shardeum.sqlite',
   blockIndexing: {
     enabled: true,
     blockProductionRate: 6,
