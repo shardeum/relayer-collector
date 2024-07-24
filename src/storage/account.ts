@@ -59,7 +59,7 @@ export async function bulkInsertAccounts(accounts: Account[]): Promise<void> {
       for (let i = 1; i < accounts.length; i++) {
         sql = sql + ', (' + placeholders + ')'
       }
-      sql += ' ON CONFLICT DO UPDATE SET ' + replacement
+      sql = sql + ' ON CONFLICT DO UPDATE SET ' + replacement
       await pgDb.run(sql, values)
     } else {
       const placeholders = Object.keys(accounts[0]).fill('?').join(', ')
