@@ -1,4 +1,5 @@
 import * as db from './sqlite3storage'
+import * as pgDb from './pgStorage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import { config } from '../config/index'
 import {
@@ -26,10 +27,18 @@ export const EOA_CodeHash = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7
 export async function insertAccount(account: Account): Promise<void> {
   try {
     const fields = Object.keys(account).join(', ')
-    const placeholders = Object.keys(account).fill('?').join(', ')
     const values = extractValues(account)
-    const sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(account).map((_key, ind) => `\$${ind + 1}`).join(', ')
+      const replacement = Object.keys(account).map((key) => `${key} = EXCLUDED.${key}`).join(', ')
+      const sql = 'INSERT INTO accounts (' + fields + ') VALUES (' + placeholders + ') ON CONFLICT DO UPDATE SET ' + replacement
+      await pgDb.run(sql, values)
+    } else {
+      const placeholders = Object.keys(account).fill('?').join(', ')
+      const sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     if (config.verbose) console.log('Successfully inserted Account', account.ethAddress || account.accountId)
     if (isShardeumIndexerEnabled()) await insertAccountEntry(account)
   } catch (e) {
@@ -41,13 +50,26 @@ export async function insertAccount(account: Account): Promise<void> {
 export async function bulkInsertAccounts(accounts: Account[]): Promise<void> {
   try {
     const fields = Object.keys(accounts[0]).join(', ')
-    const placeholders = Object.keys(accounts[0]).fill('?').join(', ')
     const values = extractValuesFromArray(accounts)
-    let sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < accounts.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(accounts[0]).map((_key, ind) => `${ind + 1}`).join(', ')
+      const replacement = Object.keys(accounts[0]).map((key) => `${key} = EXCLUDED.${key}`).join(', ')
+      let sql = 'INSERT INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < accounts.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      sql += ' ON CONFLICT DO UPDATE SET ' + replacement
+      await pgDb.run(sql, values)
+    } else {
+      const placeholders = Object.keys(accounts[0]).fill('?').join(', ')
+      let sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < accounts.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
+
     console.log('Successfully bulk inserted Accounts', accounts.length)
     if (isShardeumIndexerEnabled()) await bulkInsertAccountEntries(accounts)
   } catch (e) {
@@ -125,10 +147,10 @@ export async function queryAccountCount(type?: ContractType | AccountSearchType)
           type === AccountSearchType.GENERIC
             ? ContractType.GENERIC
             : type === AccountSearchType.ERC_20
-            ? ContractType.ERC_20
-            : type === AccountSearchType.ERC_721
-            ? ContractType.ERC_721
-            : ContractType.ERC_1155
+              ? ContractType.ERC_20
+              : type === AccountSearchType.ERC_721
+                ? ContractType.ERC_721
+                : ContractType.ERC_1155
         const sql = `SELECT COUNT(*) FROM accounts WHERE accountType=? AND contractType=?`
         accounts = await db.get(sql, [AccountType.Account, type])
       }
@@ -167,10 +189,10 @@ export async function queryAccounts(
           type === AccountSearchType.GENERIC
             ? ContractType.GENERIC
             : type === AccountSearchType.ERC_20
-            ? ContractType.ERC_20
-            : type === AccountSearchType.ERC_721
-            ? ContractType.ERC_721
-            : ContractType.ERC_1155
+              ? ContractType.ERC_20
+              : type === AccountSearchType.ERC_721
+                ? ContractType.ERC_721
+                : ContractType.ERC_1155
         const sql = `SELECT * FROM accounts WHERE accountType=? AND contractType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
         accounts = await db.all(sql, [AccountType.Account, type])
       }

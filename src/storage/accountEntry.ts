@@ -1,6 +1,7 @@
 import { config } from '../config/index'
 import { Account, AccountEntry } from '../types'
 import * as db from './sqlite3storage'
+import * as pgDb from './pgStorage'
 import { Utils as StringUtils } from '@shardus/types'
 
 export async function insertAccountEntry(account: Account): Promise<void> {
@@ -11,10 +12,17 @@ export async function insertAccountEntry(account: Account): Promise<void> {
       data: account.account,
     }
     const fields = Object.keys(accountEntry).join(', ')
-    const placeholders = Object.keys(accountEntry).fill('?').join(', ')
     const values = db.extractValues(accountEntry)
-    const sql = 'INSERT OR REPLACE INTO accountsEntry (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values, 'shardeumIndexer')
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(accountEntry).map((key, ind) => `\$${ind + 1}`).join(', ')
+      const replacement = Object.keys(accountEntry).map((key) => `${key} = EXCLUDED.${key}`).join(', ')
+      const sql = 'INSERT INTO accountsEntry (' + fields + ') VALUES (' + placeholders + ') ON CONFLICT DO UPDATE SET ' + replacement
+      await pgDb.run(sql, values, 'shardeumIndexer')
+    } else {
+      const placeholders = Object.keys(accountEntry).fill('?').join(', ')
+      const sql = 'INSERT OR REPLACE INTO accountsEntry (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values, 'shardeumIndexer')
+    }
     if (config.verbose)
       console.log(
         'ShardeumIndexer: Successfully inserted AccountEntry',
