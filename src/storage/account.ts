@@ -80,14 +80,25 @@ export async function bulkInsertAccounts(accounts: Account[]): Promise<void> {
 
 export async function updateAccount(_accountId: string, account: Partial<Account>): Promise<void> {
   try {
-    const sql = `UPDATE accounts SET cycle = $cycle, timestamp = $timestamp, account = $account, hash = $hash WHERE accountId = $accountId `
-    await db.run(sql, {
-      $cycle: account.cycle,
-      $timestamp: account.timestamp,
-      $account: account.account && StringUtils.safeStringify(account.account),
-      $hash: account.hash,
-      $accountId: account.accountId,
-    })
+    if (config.postgresEnabled) {
+      const sql = `UPDATE accounts SET cycle = $1, timestamp = $2, account = $3, hash = $4 WHERE accountId = $5 `
+      await pgDb.run(sql, [
+        account.cycle,
+        account.timestamp,
+        account.account && StringUtils.safeStringify(account.account),
+        account.hash,
+        account.accountId
+      ])
+    } else {
+      const sql = `UPDATE accounts SET cycle = $cycle, timestamp = $timestamp, account = $account, hash = $hash WHERE accountId = $accountId `
+      await db.run(sql, {
+        $cycle: account.cycle,
+        $timestamp: account.timestamp,
+        $account: account.account && StringUtils.safeStringify(account.account),
+        $hash: account.hash,
+        $accountId: account.accountId,
+      })
+    }
     if (config.verbose) console.log('Successfully updated Account', account.ethAddress || account.accountId)
     if (isShardeumIndexerEnabled()) await updateAccountEntry(_accountId, account)
   } catch (e) {
@@ -99,10 +110,20 @@ export async function updateAccount(_accountId: string, account: Partial<Account
 export async function insertToken(token: Token): Promise<void> {
   try {
     const fields = Object.keys(token).join(', ')
-    const placeholders = Object.keys(token).fill('?').join(', ')
     const values = extractValues(token)
-    const sql = 'INSERT OR REPLACE INTO tokens (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(token).map((_, i) => `$${i + 1}`).join(', ')
+
+      const sql = `INSERT INTO tokens (${fields}) VALUES (${placeholders}) ON CONFLICT (ethAddress) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      await pgDb.run(sql, values)
+    }
+    else {
+      const placeholders = Object.keys(token).fill('?').join(', ')
+
+      const sql = 'INSERT OR REPLACE INTO tokens (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     if (config.verbose) console.log('Successfully inserted Token', token.ethAddress)
   } catch (e) {
     console.log(e)
@@ -113,13 +134,35 @@ export async function insertToken(token: Token): Promise<void> {
 export async function bulkInsertTokens(tokens: Token[]): Promise<void> {
   try {
     const fields = Object.keys(tokens[0]).join(', ')
-    const placeholders = Object.keys(tokens[0]).fill('?').join(', ')
     const values = extractValuesFromArray(tokens)
-    let sql = 'INSERT OR REPLACE INTO tokens (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < tokens.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(tokens[0]).map((_, i) => `$${i + 1}`).join(', ')
+
+      let sql = `INSERT INTO tokens (${fields}) VALUES `
+
+      sql += tokens.map((_, i) => {
+        const currentPlaceholders = Object.keys(tokens[0])
+          .map((_, j) => `$${i * Object.keys(tokens[0]).length + j + 1}`)
+          .join(', ')
+
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+
+      sql = `${sql} ON CONFLICT (ethAddress) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+
+      await pgDb.run(sql, values)
     }
-    await db.run(sql, values)
+    else {
+      const placeholders = Object.keys(tokens[0]).fill('?').join(', ')
+
+      let sql = 'INSERT OR REPLACE INTO tokens (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < tokens.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
+    }
     console.log('Successfully inserted Tokens', tokens.length)
   } catch (e) {
     console.log(e)

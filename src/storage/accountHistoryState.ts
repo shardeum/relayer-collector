@@ -1,4 +1,5 @@
 import * as db from './sqlite3storage'
+import * as pgDb from './pgStorage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import { config } from '../config/index'
 import { Account, AccountType } from '../types'
@@ -18,10 +19,24 @@ export interface AccountHistoryState {
 export async function insertAccountHistoryState(accountHistoryState: AccountHistoryState): Promise<void> {
   try {
     const fields = Object.keys(accountHistoryState).join(', ')
-    const placeholders = Object.keys(accountHistoryState).fill('?').join(', ')
     const values = extractValues(accountHistoryState)
-    const sql = 'INSERT OR REPLACE INTO accountHistoryState (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(accountHistoryState).map((_, i) => `$${i + 1}`).join(', ');
+
+      const sql = `
+        INSERT INTO accountHistoryState (${fields})
+        VALUES (${placeholders})
+        ON CONFLICT (accountId)
+        DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+      `
+      await pgDb.run(sql, values)
+    } else {
+      const placeholders = Object.keys(accountHistoryState).fill('?').join(', ')
+
+      const sql = 'INSERT OR REPLACE INTO accountHistoryState (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     if (config.verbose)
       console.log(
         'Successfully inserted AccountHistoryState',
@@ -43,13 +58,29 @@ export async function bulkInsertAccountHistoryStates(
 ): Promise<void> {
   try {
     const fields = Object.keys(accountHistoryStates[0]).join(', ')
-    const placeholders = Object.keys(accountHistoryStates[0]).fill('?').join(', ')
     const values = extractValuesFromArray(accountHistoryStates)
-    let sql = 'INSERT OR REPLACE INTO accountHistoryState (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < accountHistoryStates.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+    if (config.postgresEnabled) {
+      let sql = `INSERT INTO accountHistoryState (${fields}) VALUES `
+
+      sql += accountHistoryStates.map((_, i) => {
+        const currentPlaceholders = Object.keys(accountHistoryStates[0])
+          .map((_, j) => `$${i * Object.keys(accountHistoryStates[0]).length + j + 1}`)
+          .join(', ')
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT (accountId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+
+      await pgDb.run(sql, values);
+    } else {
+      const placeholders = Object.keys(accountHistoryStates[0]).fill('?').join(', ')
+
+      let sql = 'INSERT OR REPLACE INTO accountHistoryState (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < accountHistoryStates.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
     console.log('Successfully bulk inserted AccountHistoryStates', accountHistoryStates.length)
   } catch (e) {
     console.log(e)

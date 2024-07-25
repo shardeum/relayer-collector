@@ -1,6 +1,7 @@
 import { bigIntToHex, bytesToHex } from '@ethereumjs/util'
 import { config } from '../config'
 import * as db from './sqlite3storage'
+import * as pgDb from './pgStorage'
 import { Block as EthBlock } from '@ethereumjs/block'
 import { Common, Hardfork } from '@ethereumjs/common'
 import { Cycle, DbBlock } from '../types'
@@ -15,10 +16,27 @@ export type ShardeumBlockOverride = EthBlock & { number?: string; hash?: string 
 export async function insertBlock(block: DbBlock): Promise<void> {
   try {
     const fields = Object.keys(block).join(', ')
-    const placeholders = Object.keys(block).fill('?').join(', ')
     const values = db.extractValues(block)
-    const sql = 'INSERT OR REPLACE INTO blocks (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(block).map((_, i) => `$${i + 1}`).join(', ')
+
+      const sql = `
+        INSERT INTO blocks (${fields})
+        VALUES (${placeholders})
+        ON CONFLICT (blockId)
+        DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+      `
+
+      await pgDb.run(sql, values)
+    }
+    else {
+
+      const placeholders = Object.keys(block).fill('?').join(', ')
+
+      const sql = 'INSERT OR REPLACE INTO blocks (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     /*prettier-ignore*/ if (config.verbose) console.log('block: Successfully inserted block', block.number, block.hash)
   } catch (e) {
     console.log(e)
@@ -29,13 +47,29 @@ export async function insertBlock(block: DbBlock): Promise<void> {
 export async function bulkInsertBlocks(blocks: DbBlock[]): Promise<void> {
   try {
     const fields = Object.keys(blocks[0]).join(', ')
-    const placeholders = Object.keys(blocks[0]).fill('?').join(', ')
     const values = db.extractValuesFromArray(blocks)
-    let sql = 'INSERT OR REPLACE INTO blocks (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < blocks.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+
+    if (config.postgresEnabled) {
+      let sql = `INSERT INTO blocks (${fields}) VALUES `
+      sql += blocks.map((_, i) => {
+        const currentPlaceholders = Object.keys(blocks[0])
+          .map((_, j) => `$${i * Object.keys(blocks[0]).length + j + 1}`)
+          .join(', ')
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT (blockId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+
+      await pgDb.run(sql, values)
+    } else {
+      const placeholders = Object.keys(blocks[0]).fill('?').join(', ')
+
+      let sql = 'INSERT OR REPLACE INTO blocks (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < blocks.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
     /*prettier-ignore*/ console.log('block: Successfully bulk inserted blocks', blocks.length)
   } catch (e) {
     console.log(e)
@@ -65,7 +99,7 @@ export async function upsertBlocksForCycleCore(
     const newBlockTimestampInSecond =
       startTimeInSeconds +
       (blockNumber - config.blockIndexing.initBlockNumber - firstBlockNumberForCycle) *
-        config.blockIndexing.blockProductionRate
+      config.blockIndexing.blockProductionRate
     const newBlockTimestamp = newBlockTimestampInSecond * 1000
     const block = createNewBlock(blockNumber, newBlockTimestamp)
     /*prettier-ignore*/ if (config.verbose) console.log(`Block number: ${block.header.number}, timestamp: ${block.header.timestamp}, hash: ${bytesToHex(block.header.hash())}`)

@@ -1,5 +1,6 @@
 /* eslint-disable no-empty */
 import * as db from './sqlite3storage'
+import * as pgDb from './pgStorage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import { config } from '../config/index'
 import { isArray } from 'lodash'
@@ -34,10 +35,24 @@ type DbLog = Log & {
 export async function insertLog(log: Log): Promise<void> {
   try {
     const fields = Object.keys(log).join(', ')
-    const placeholders = Object.keys(log).fill('?').join(', ')
     const values = extractValues(log)
-    const sql = 'INSERT OR REPLACE INTO logs (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(log).map((_, i) => `$${i + 1}`).join(', ')
+
+      const sql = `
+        INSERT INTO logs (${fields})
+        VALUES (${placeholders})
+        ON CONFLICT (logId)
+        DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+      `
+      await pgDb.run(sql, values)
+    }
+    else {
+      const placeholders = Object.keys(log).fill('?').join(', ')
+
+      const sql = 'INSERT OR REPLACE INTO logs (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     if (config.verbose) console.log('Successfully inserted Log', log.txHash, log.contractAddress)
   } catch (e) {
     console.log(e)
@@ -52,13 +67,30 @@ export async function insertLog(log: Log): Promise<void> {
 export async function bulkInsertLogs(logs: Log[]): Promise<void> {
   try {
     const fields = Object.keys(logs[0]).join(', ')
-    const placeholders = Object.keys(logs[0]).fill('?').join(', ')
     const values = extractValuesFromArray(logs)
-    let sql = 'INSERT OR REPLACE INTO logs (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < logs.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+
+    if (config.postgresEnabled) {
+      let sql = `INSERT INTO logs (${fields}) VALUES `
+
+      sql += logs.map((_, i) => {
+        const currentPlaceholders = Object.keys(logs[0])
+          .map((_, j) => `$${i * Object.keys(logs[0]).length + j + 1}`)
+          .join(', ')
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT (logId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+
+      await pgDb.run(sql, values)
     }
-    await db.run(sql, values)
+    else {
+      const placeholders = Object.keys(logs[0]).fill('?').join(', ')
+      let sql = 'INSERT OR REPLACE INTO logs (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < logs.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
+    }
     console.log('Successfully bulk inserted Logs', logs.length)
   } catch (e) {
     console.log(e)

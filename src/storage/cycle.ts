@@ -1,4 +1,5 @@
 import * as db from './sqlite3storage'
+import * as pgDb from './pgStorage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import { Cycle } from '../types'
 import { config } from '../config/index'
@@ -21,10 +22,23 @@ export function isCycle(obj: Cycle): obj is Cycle {
 export async function insertCycle(cycle: Cycle): Promise<void> {
   try {
     const fields = Object.keys(cycle).join(', ')
-    const placeholders = Object.keys(cycle).fill('?').join(', ')
     const values = extractValues(cycle)
-    const sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(cycle).map((_, i) => `$${i + 1}`).join(', ')
+
+      const sql = `
+        INSERT INTO cycles (${fields})
+        VALUES (${placeholders})
+        ON CONFLICT (cycleId)
+        DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+      `;
+
+      await pgDb.run(sql, values)
+    } else {
+      const placeholders = Object.keys(cycle).fill('?').join(', ')
+      const sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     if (config.verbose)
       console.log('Successfully inserted Cycle', cycle.cycleRecord.counter, cycle.cycleMarker)
     if (isBlockIndexingEnabled()) await upsertBlocksForCycle(cycle)
@@ -41,13 +55,30 @@ export async function insertCycle(cycle: Cycle): Promise<void> {
 export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
   try {
     const fields = Object.keys(cycles[0]).join(', ')
-    const placeholders = Object.keys(cycles[0]).fill('?').join(', ')
     const values = extractValuesFromArray(cycles)
-    let sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < cycles.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+    if (config.postgresEnabled) {
+      let sql = `INSERT INTO cycles (${fields}) VALUES `;
+
+      sql += cycles.map((_, i) => {
+        const currentPlaceholders = Object.keys(cycles[0])
+          .map((_, j) => `$${i * Object.keys(cycles[0]).length + j + 1}`)
+          .join(', ')
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT (cycleId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+
+      await pgDb.run(sql, values)
+    } else {
+
+      const placeholders = Object.keys(cycles[0]).fill('?').join(', ')
+
+      let sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < cycles.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
     console.log('Successfully bulk inserted Cycles', cycles.length)
     if (isBlockIndexingEnabled()) await upsertBlocksForCycles(cycles)
   } catch (e) {
@@ -58,12 +89,23 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
 
 export async function updateCycle(marker: string, cycle: Cycle): Promise<void> {
   try {
-    const sql = `UPDATE cycles SET counter = $counter, cycleRecord = $cycleRecord WHERE cycleMarker = $marker `
-    await db.run(sql, {
-      $counter: cycle.counter,
-      $cycleRecord: cycle.cycleRecord && StringUtils.safeStringify(cycle.cycleRecord),
-      $marker: marker,
-    })
+    if (config.postgresEnabled) {
+      const sql = `UPDATE cycles SET counter = $1, cycleRecord = $2 WHERE cycleMarker = $3`
+      const values = [
+        cycle.counter,
+        cycle.cycleRecord && StringUtils.safeStringify(cycle.cycleRecord),
+        marker
+      ]
+      await pgDb.run(sql, values)
+    }
+    else {
+      const sql = `UPDATE cycles SET counter = $counter, cycleRecord = $cycleRecord WHERE cycleMarker = $marker `
+      await db.run(sql, {
+        $counter: cycle.counter,
+        $cycleRecord: cycle.cycleRecord && StringUtils.safeStringify(cycle.cycleRecord),
+        $marker: marker,
+      })
+    }
     if (config.verbose) console.log('Updated cycle for counter', cycle.cycleRecord.counter, cycle.cycleMarker)
     if (isBlockIndexingEnabled()) await upsertBlocksForCycle(cycle)
   } catch (e) {

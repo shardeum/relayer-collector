@@ -48,14 +48,34 @@ export async function bulkInsertAccountEntries(accounts: Account[]): Promise<voi
       }
       accountEntries.push(accountEntry)
     }
+
     const fields = Object.keys(accountEntries[0]).join(', ')
-    const placeholders = Object.keys(accountEntries[0]).fill('?').join(', ')
     const values = db.extractValuesFromArray(accountEntries)
-    let sql = 'INSERT OR REPLACE INTO accountsEntry (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < accountEntries.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(accountEntries[0]).map((_, i) => `$${i + 1}`).join(', ')
+
+      let sql = `INSERT INTO accountsEntry (${fields}) VALUES `;
+
+      sql += accountEntries.map((_, i) => {
+        const currentPlaceholders = Object.keys(accountEntries[0])
+          .map((_, j) => `$${i * Object.keys(accountEntries[0]).length + j + 1}`)
+          .join(', ')
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+      sql = `${sql} ON CONFLICT (accountId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+      await pgDb.run(sql, values, 'shardeumIndexer')
     }
-    await db.run(sql, values, 'shardeumIndexer')
+    else {
+      const placeholders = Object.keys(accountEntries[0]).fill('?').join(', ')
+
+      let sql = 'INSERT OR REPLACE INTO accountsEntry (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < accountEntries.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values, 'shardeumIndexer')
+    }
     console.log('ShardeumIndexer: Successfully bulk inserted AccountEntries', accountEntries.length)
   } catch (e) {
     console.log(e)
@@ -65,16 +85,32 @@ export async function bulkInsertAccountEntries(accounts: Account[]): Promise<voi
 
 export async function updateAccountEntry(_accountId: string, account: Partial<Account>): Promise<void> {
   try {
-    const sql = `UPDATE accountsEntry SET timestamp = $timestamp, data = $account WHERE accountId = $accountId `
-    await db.run(
-      sql,
-      {
-        $timestamp: account.timestamp,
-        $account: account.account && StringUtils.safeStringify(account.account),
-        $accountId: account.accountId,
-      },
-      'shardeumIndexer'
-    )
+    if (config.postgresEnabled) {
+      const sql = `
+        UPDATE accountsEntry
+        SET timestamp = $1, data = $2
+        WHERE accountId = $3
+      `
+      const values = [
+        account.timestamp,
+        account.account && StringUtils.safeStringify(account.account),
+        account.accountId
+      ];
+
+      await pgDb.run(sql, values, 'shardeumIndexer')
+    }
+    else {
+      const sql = `UPDATE accountsEntry SET timestamp = $timestamp, data = $account WHERE accountId = $accountId `
+      await db.run(
+        sql,
+        {
+          $timestamp: account.timestamp,
+          $account: account.account && StringUtils.safeStringify(account.account),
+          $accountId: account.accountId,
+        },
+        'shardeumIndexer'
+      )
+    }
     if (config.verbose)
       console.log(
         'ShardeumIndexer: Successfully updated AccountEntry',
