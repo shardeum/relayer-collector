@@ -1,4 +1,5 @@
 import * as db from './sqlite3storage'
+import * as pgDb from './pgStorage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import { config } from '../config/index'
 import {
@@ -31,10 +32,25 @@ export async function insertOriginalTxData(
 ): Promise<void> {
   try {
     const fields = Object.keys(originalTxData).join(', ')
-    const placeholders = Object.keys(originalTxData).fill('?').join(', ')
     const values = extractValues(originalTxData)
-    const sql = `INSERT OR REPLACE INTO ${tableName} (` + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(originalTxData).map((_, i) => `$${i + 1}`).join(', ')
+      const sql = `
+        INSERT INTO ${tableName} (${fields})
+        VALUES (${placeholders})
+        ON CONFLICT (id)
+        DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+      `
+
+      await pgDb.run(sql, values)
+    }
+    else {
+      const placeholders = Object.keys(originalTxData).fill('?').join(', ')
+      const sql = `INSERT OR REPLACE INTO ${tableName} (` + fields + ') VALUES (' + placeholders + ')'
+
+      await db.run(sql, values)
+    }
     if (config.verbose) console.log(`Successfully inserted ${tableName}`, originalTxData.txId)
   } catch (e) {
     console.log(e)
@@ -48,13 +64,30 @@ export async function bulkInsertOriginalTxsData(
 ): Promise<void> {
   try {
     const fields = Object.keys(originalTxsData[0]).join(', ')
-    const placeholders = Object.keys(originalTxsData[0]).fill('?').join(', ')
     const values = extractValuesFromArray(originalTxsData)
-    let sql = `INSERT OR REPLACE INTO ${tableName} (` + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < originalTxsData.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+
+    if (config.postgresEnabled) {
+      let sql = `INSERT INTO ${tableName} (${fields}) VALUES `;
+
+      sql += originalTxsData.map((_: unknown, i: number) => {
+        const rowPlaceholders = Object.keys(originalTxsData[0])
+          .map((_, j) => `$${i * Object.keys(originalTxsData[0]).length + j + 1}`)
+          .join(', ')
+        return `(${rowPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT (id) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+
+      await pgDb.run(sql, values)
+
+    } else {
+      const placeholders = Object.keys(originalTxsData[0]).fill('?').join(', ')
+      let sql = `INSERT OR REPLACE INTO ${tableName} (` + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < originalTxsData.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
     console.log(`Successfully bulk inserted ${tableName}`, originalTxsData.length)
   } catch (e) {
     console.log(e)
@@ -175,12 +208,12 @@ export async function queryOriginalTxDataCount(
           txType === TransactionSearchType.Receipt
             ? TransactionType.Receipt
             : txType === TransactionSearchType.NodeRewardReceipt
-            ? TransactionType.NodeRewardReceipt
-            : txType === TransactionSearchType.StakeReceipt
-            ? TransactionType.StakeReceipt
-            : txType === TransactionSearchType.UnstakeReceipt
-            ? TransactionType.UnstakeReceipt
-            : TransactionType.InternalTxReceipt
+              ? TransactionType.NodeRewardReceipt
+              : txType === TransactionSearchType.StakeReceipt
+                ? TransactionType.StakeReceipt
+                : txType === TransactionSearchType.UnstakeReceipt
+                  ? TransactionType.UnstakeReceipt
+                  : TransactionType.InternalTxReceipt
         sql += ` transactionType=?`
         values.push(ty)
       }
@@ -233,12 +266,12 @@ export async function queryOriginalTxsData(
           txType === TransactionSearchType.Receipt
             ? TransactionType.Receipt
             : txType === TransactionSearchType.NodeRewardReceipt
-            ? TransactionType.NodeRewardReceipt
-            : txType === TransactionSearchType.StakeReceipt
-            ? TransactionType.StakeReceipt
-            : txType === TransactionSearchType.UnstakeReceipt
-            ? TransactionType.UnstakeReceipt
-            : TransactionType.InternalTxReceipt
+              ? TransactionType.NodeRewardReceipt
+              : txType === TransactionSearchType.StakeReceipt
+                ? TransactionType.StakeReceipt
+                : txType === TransactionSearchType.UnstakeReceipt
+                  ? TransactionType.UnstakeReceipt
+                  : TransactionType.InternalTxReceipt
         sql += ` transactionType=?`
         values.push(ty)
       }

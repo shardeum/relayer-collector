@@ -16,6 +16,7 @@ import {
   Token,
 } from '../types'
 import * as db from './sqlite3storage'
+import * as pgDb from './pgStorage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import { decodeTx, getContractInfo, ZERO_ETH_ADDRESS } from '../class/TxDecoder'
 import { bytesToHex } from '@ethereumjs/util'
@@ -34,10 +35,25 @@ export const receiptsMap: Map<string, number> = new Map()
 export async function insertReceipt(receipt: Receipt): Promise<void> {
   try {
     const fields = Object.keys(receipt).join(', ')
-    const placeholders = Object.keys(receipt).fill('?').join(', ')
     const values = extractValues(receipt)
-    const sql = 'INSERT OR REPLACE INTO receipts (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(receipt).map((_, i) => `$${i + 1}`).join(', ')
+      const sql = `
+        INSERT INTO receipts (${fields})
+        VALUES (${placeholders})
+        ON CONFLICT (id)
+        DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+      `
+
+      await pgDb.run(sql, values)
+    }
+    else {
+      const placeholders = Object.keys(receipt).fill('?').join(', ')
+      const sql = 'INSERT OR REPLACE INTO receipts (' + fields + ') VALUES (' + placeholders + ')'
+
+      await db.run(sql, values)
+    }
     if (config.verbose) console.log('Successfully inserted Receipt', receipt.receiptId)
   } catch (e) {
     console.log(e)
@@ -48,13 +64,30 @@ export async function insertReceipt(receipt: Receipt): Promise<void> {
 export async function bulkInsertReceipts(receipts: Receipt[]): Promise<void> {
   try {
     const fields = Object.keys(receipts[0]).join(', ')
-    const placeholders = Object.keys(receipts[0]).fill('?').join(', ')
     const values = extractValuesFromArray(receipts)
-    let sql = 'INSERT OR REPLACE INTO receipts (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < receipts.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+    if (config.postgresEnabled) {
+      let sql = `INSERT INTO receipts (${fields}) VALUES `;
+
+      sql += receipts.map((_, i) => {
+        const rowPlaceholders = Object.keys(receipts[0])
+          .map((_, j) => `$${i * Object.keys(receipts[0]).length + j + 1}`)
+          .join(', ')
+        return `(${rowPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT (id) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+
+      await pgDb.run(sql, values)
     }
-    await db.run(sql, values)
+    else {
+      const placeholders = Object.keys(receipts[0]).fill('?').join(', ')
+
+      let sql = 'INSERT OR REPLACE INTO receipts (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < receipts.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
+    }
     console.log('Successfully bulk inserted receipts', receipts.length)
   } catch (e) {
     console.log(e)
@@ -122,7 +155,7 @@ export async function processReceiptData(receipts: Receipt[], saveOnlyNewData = 
           accountType === AccountType.Account &&
           'account' in accObj.account &&
           bytesToHex(Uint8Array.from(Object.values(accObj.account.account.codeHash))) !==
-            AccountDB.EOA_CodeHash
+          AccountDB.EOA_CodeHash
         ) {
           const accountExist = await AccountDB.queryAccountByAccountId(accObj.accountId)
           if (config.verbose) console.log('accountExist', accountExist)
@@ -191,14 +224,14 @@ export async function processReceiptData(receipts: Receipt[], saveOnlyNewData = 
         txReceipt.data.accountType === AccountType.Receipt
           ? TransactionType.Receipt
           : txReceipt.data.accountType === AccountType.NodeRewardReceipt
-          ? TransactionType.NodeRewardReceipt
-          : txReceipt.data.accountType === AccountType.StakeReceipt
-          ? TransactionType.StakeReceipt
-          : txReceipt.data.accountType === AccountType.UnstakeReceipt
-          ? TransactionType.UnstakeReceipt
-          : txReceipt.data.accountType === AccountType.InternalTxReceipt
-          ? TransactionType.InternalTxReceipt
-          : (-1 as TransactionType)
+            ? TransactionType.NodeRewardReceipt
+            : txReceipt.data.accountType === AccountType.StakeReceipt
+              ? TransactionType.StakeReceipt
+              : txReceipt.data.accountType === AccountType.UnstakeReceipt
+                ? TransactionType.UnstakeReceipt
+                : txReceipt.data.accountType === AccountType.InternalTxReceipt
+                  ? TransactionType.InternalTxReceipt
+                  : (-1 as TransactionType)
       blockHash = txReceipt.data?.readableReceipt?.blockHash
       if (!blockHash) console.error(`Transaction ${tx.txId} has no blockHash`)
       blockNumber = parseInt(txReceipt.data?.readableReceipt?.blockNumber)
