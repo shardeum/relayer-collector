@@ -39,7 +39,7 @@ export async function insertOriginalTxData(
       const sql = `
         INSERT INTO ${tableName} (${fields})
         VALUES (${placeholders})
-        ON CONFLICT (id)
+        ON CONFLICT
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
 
@@ -76,7 +76,7 @@ export async function bulkInsertOriginalTxsData(
         return `(${rowPlaceholders})`
       }).join(", ")
 
-      sql += ` ON CONFLICT (id) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
 
       await pgDb.run(sql, values)
 

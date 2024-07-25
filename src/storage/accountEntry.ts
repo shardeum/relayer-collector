@@ -64,7 +64,7 @@ export async function bulkInsertAccountEntries(accounts: Account[]): Promise<voi
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql = `${sql} ON CONFLICT (accountId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+      sql = `${sql} ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
       await pgDb.run(sql, values, 'shardeumIndexer')
     }
     else {

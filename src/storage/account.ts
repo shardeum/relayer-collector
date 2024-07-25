@@ -53,19 +53,21 @@ export async function bulkInsertAccounts(accounts: Account[]): Promise<void> {
     const values = extractValuesFromArray(accounts)
 
     if (config.postgresEnabled) {
-      const placeholders = Object.keys(accounts[0]).map((_key, ind) => `${ind + 1}`).join(', ')
-      const replacement = Object.keys(accounts[0]).map((key) => `${key} = EXCLUDED.${key}`).join(', ')
-      let sql = 'INSERT INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
-      for (let i = 1; i < accounts.length; i++) {
-        sql = sql + ', (' + placeholders + ')'
-      }
-      sql = sql + ' ON CONFLICT DO UPDATE SET ' + replacement
-      await pgDb.run(sql, values)
+      let sql = `INSERT INTO accounts (${fields}) VALUES `
+      sql += accounts.map((_, i) => {
+        const currentPlaceholders = Object.keys(accounts[0])
+          .map((_, j) => `$${i * Object.keys(accounts[0]).length + j + 1}`)
+          .join(', ')
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      await pgDb.run(sql, values, 'default')
     } else {
       const placeholders = Object.keys(accounts[0]).fill('?').join(', ')
       let sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
       for (let i = 1; i < accounts.length; i++) {
-        sql = sql + ', (' + placeholders + ')'
+        sql += ', (' + placeholders + ')'
       }
       await db.run(sql, values)
     }
@@ -115,7 +117,7 @@ export async function insertToken(token: Token): Promise<void> {
     if (config.postgresEnabled) {
       const placeholders = Object.keys(token).map((_, i) => `$${i + 1}`).join(', ')
 
-      const sql = `INSERT INTO tokens (${fields}) VALUES (${placeholders}) ON CONFLICT (ethAddress) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      const sql = `INSERT INTO tokens (${fields}) VALUES (${placeholders}) ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values)
     }
     else {
@@ -150,7 +152,7 @@ export async function bulkInsertTokens(tokens: Token[]): Promise<void> {
       }).join(", ")
 
 
-      sql = `${sql} ON CONFLICT (ethAddress) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+      sql = `${sql} ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
 
       await pgDb.run(sql, values)
     }
