@@ -152,7 +152,7 @@ export async function bulkInsertTokens(tokens: Token[]): Promise<void> {
       }).join(", ")
 
 
-      sql = `${sql} ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+      sql = `${sql} ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
       await pgDb.run(sql, values)
     }
@@ -177,15 +177,17 @@ export async function queryAccountCount(type?: ContractType | AccountSearchType)
   try {
     if (type || type === AccountSearchType.All) {
       if (type === AccountSearchType.All) {
-        const sql = `SELECT COUNT(*) FROM accounts`
-        accounts = await db.get(sql, [])
+        const sql = `SELECT COUNT(*) as "COUNT(*)" FROM accounts`
+        accounts = config.postgresEnabled
+          ? await pgDb.get(sql, [])
+          : await db.get(sql, [])
       } else if (type === AccountSearchType.CA) {
         const sql = config.postgresEnabled
           ? `SELECT COUNT(*) as "COUNT(*)" FROM accounts WHERE accountType=$1 AND contractType IS NOT NULL`
-          : `SELECT COUNT(*) FROM accounts WHERE accountType=? AND contractType IS NOT NULL`;
+          : `SELECT COUNT(*) FROM accounts WHERE accountType=? AND contractType IS NOT NULL`
         accounts = config.postgresEnabled
           ? await pgDb.get(sql, [AccountType.Account])
-          : await db.get(sql, [AccountType.Account]);
+          : await db.get(sql, [AccountType.Account])
       } else if (
         type === AccountSearchType.GENERIC ||
         type === AccountSearchType.ERC_20 ||
@@ -202,18 +204,18 @@ export async function queryAccountCount(type?: ContractType | AccountSearchType)
                 : ContractType.ERC_1155
         const sql = config.postgresEnabled
           ? `SELECT COUNT(*) as "COUNT(*)" FROM accounts WHERE accountType=$1 AND contractType=$2`
-          : `SELECT COUNT(*) FROM accounts WHERE accountType=? AND contractType=?`;
+          : `SELECT COUNT(*) FROM accounts WHERE accountType=? AND contractType=?`
         accounts = config.postgresEnabled
           ? await pgDb.get(sql, [AccountType.Account, type])
-          : await db.get(sql, [AccountType.Account, type]);
+          : await db.get(sql, [AccountType.Account, type])
       }
     } else {
       const sql = config.postgresEnabled
         ? `SELECT COUNT(*) as "COUNT(*)" FROM accounts WHERE accountType=$1`
-        : `SELECT COUNT(*) FROM accounts WHERE accountType=?`;
+        : `SELECT COUNT(*) FROM accounts WHERE accountType=?`
       accounts = config.postgresEnabled
         ? await pgDb.get(sql, [AccountType.Account])
-        : await db.get(sql, [AccountType.Account]);
+        : await db.get(sql, [AccountType.Account])
     }
   } catch (e) {
     console.log(e)
@@ -272,10 +274,10 @@ export async function queryAccountByAccountId(accountId: string): Promise<Accoun
   try {
     const sql = config.postgresEnabled
       ? `SELECT * FROM accounts WHERE accountId=$1`
-      : `SELECT * FROM accounts WHERE accountId=?`;
+      : `SELECT * FROM accounts WHERE accountId=?`
     const account: DbAccount = config.postgresEnabled
       ? await pgDb.get(sql, [accountId])
-      : await db.get(sql, [accountId]);
+      : await db.get(sql, [accountId])
     if (account) account.account = StringUtils.safeJsonParse(account.account)
     if (account && account.contractInfo)
       account.contractInfo = StringUtils.safeJsonParse(account.contractInfo)
@@ -294,11 +296,11 @@ export async function queryAccountByAddress(
   try {
     const sql = config.postgresEnabled
       ? `SELECT * FROM accounts WHERE accountType=$1 AND ethAddress=$2 ORDER BY accountType ASC LIMIT 1`
-      : `SELECT * FROM accounts WHERE accountType=? AND ethAddress=? ORDER BY accountType ASC LIMIT 1`;
+      : `SELECT * FROM accounts WHERE accountType=? AND ethAddress=? ORDER BY accountType ASC LIMIT 1`
 
     const account: DbAccount = config.postgresEnabled
       ? await pgDb.get(sql, [accountType, address])
-      : await db.get(sql, [accountType, address]);
+      : await db.get(sql, [accountType, address])
     if (account) account.account = StringUtils.safeJsonParse(account.account)
     if (account && account.contractInfo)
       account.contractInfo = StringUtils.safeJsonParse(account.contractInfo)
@@ -318,11 +320,11 @@ export async function queryAccountCountBetweenCycles(
   try {
     const sql = config.postgresEnabled
       ? `SELECT COUNT(*) as "COUNT(*)" FROM accounts WHERE cycle BETWEEN $1 AND $2`
-      : `SELECT COUNT(*) FROM accounts WHERE cycle BETWEEN ? AND ?`;
+      : `SELECT COUNT(*) FROM accounts WHERE cycle BETWEEN ? AND ?`
 
     accounts = config.postgresEnabled
       ? await pgDb.get(sql, [startCycleNumber, endCycleNumber])
-      : await db.get(sql, [startCycleNumber, endCycleNumber]);
+      : await db.get(sql, [startCycleNumber, endCycleNumber])
   } catch (e) {
     console.log(e)
   }
@@ -391,11 +393,11 @@ export async function queryTokenBalance(
 ): Promise<{ success: boolean; error?: string; balance?: string }> {
   const sql = config.postgresEnabled
     ? `SELECT * FROM tokens WHERE ethAddress=$1 AND contractAddress=$2`
-    : `SELECT * FROM tokens WHERE ethAddress=? AND contractAddress=?`;
+    : `SELECT * FROM tokens WHERE ethAddress=? AND contractAddress=?`
 
   const token: Token = config.postgresEnabled
     ? await pgDb.get(sql, [addressToSearch, contractAddress])
-    : await db.get(sql, [addressToSearch, contractAddress]);
+    : await db.get(sql, [addressToSearch, contractAddress])
 
   if (config.verbose) console.log('Token balance', token)
   if (!token) return { success: false, error: 'tokenBalance is not found' }

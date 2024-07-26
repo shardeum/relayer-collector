@@ -123,9 +123,14 @@ export async function upsertBlocksForCycleCore(
 export async function queryBlockByNumber(blockNumber: number): Promise<DbBlock | null> {
   /*prettier-ignore*/ if (config.verbose) console.log('block: Querying block by number', blockNumber)
   try {
-    const sql = 'SELECT * FROM blocks WHERE number = ?'
+    const sql = config.postgresEnabled
+      ? 'SELECT * FROM blocks WHERE number = $1'
+      : 'SELECT * FROM blocks WHERE number = ?'
     const values = [blockNumber]
-    const block: DbBlock = await db.get(sql, values)
+    const block: DbBlock = config.postgresEnabled
+      ? await pgDb.get(sql, values)
+      : await db.get(sql, values)
+
     if (block && block.timestamp > Date.now() - blockQueryDelayInMillis()) {
       return null
     }
@@ -139,7 +144,10 @@ export async function queryBlockByNumber(blockNumber: number): Promise<DbBlock |
 export async function queryBlockByTag(tag: 'earliest' | 'latest'): Promise<DbBlock | null> {
   try {
     if (tag === 'earliest') {
-      const block: DbBlock = await db.get(`SELECT * FROM blocks WHERE number = 0`)
+      const sql = 'SELECT * FROM blocks WHERE number = 0'
+      const block: DbBlock = config.postgresEnabled
+        ? await pgDb.get(sql)
+        : await db.get(sql)
       return block
     }
     const block: DbBlock = await getLatestBlock()
@@ -153,9 +161,14 @@ export async function queryBlockByTag(tag: 'earliest' | 'latest'): Promise<DbBlo
 export async function queryBlockByHash(blockHash: string): Promise<DbBlock | null> {
   /*prettier-ignore*/ if (config.verbose) console.log('block: Querying block by hash', blockHash)
   try {
-    const sql = 'SELECT * FROM blocks WHERE hash = ?'
+    const sql = config.postgresEnabled
+      ? 'SELECT * FROM blocks WHERE hash = $1'
+      : 'SELECT * FROM blocks WHERE hash = ?'
     const values = [blockHash]
-    const block: DbBlock = await db.get(sql, values)
+    const block: DbBlock = config.postgresEnabled
+      ? await pgDb.get(sql, values)
+      : await db.get(sql, values)
+
     if (block && block.timestamp > Date.now() - blockQueryDelayInMillis()) {
       return null
     }
@@ -236,8 +249,10 @@ async function convertToReadableBlock(block: EthBlock): Promise<ShardeumBlockOve
 export async function queryBlockCount(): Promise<number> {
   let blocks: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM blocks`
-    blocks = await db.get(sql, [])
+    const sql = `SELECT COUNT(*) as "COUNT(*)" FROM blocks`
+    blocks = config.postgresEnabled
+      ? await pgDb.get(sql, [])
+      : await db.get(sql, [])
   } catch (e) {
     console.log(e)
   }

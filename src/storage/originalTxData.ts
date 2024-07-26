@@ -67,7 +67,7 @@ export async function bulkInsertOriginalTxsData(
     const values = extractValuesFromArray(originalTxsData)
 
     if (config.postgresEnabled) {
-      let sql = `INSERT INTO ${tableName} (${fields}) VALUES `;
+      let sql = `INSERT INTO ${tableName} (${fields}) VALUES `
 
       sql += originalTxsData.map((_: unknown, i: number) => {
         const rowPlaceholders = Object.keys(originalTxsData[0])
@@ -76,7 +76,7 @@ export async function bulkInsertOriginalTxsData(
         return `(${rowPlaceholders})`
       }).join(", ")
 
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
       await pgDb.run(sql, values)
 
@@ -280,8 +280,12 @@ export async function queryOriginalTxsData(
     originalTxsData = await db.all(sql, values)
     for (const originalTxData of originalTxsData) {
       if (txType) {
-        const sql = `SELECT * FROM originalTxsData WHERE txId=?`
-        const originalTxDataById: DbOriginalTxData = await db.get(sql, [originalTxData.txId])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM originalTxsData WHERE txId=$1`
+          : `SELECT * FROM originalTxsData WHERE txId=?`
+        const originalTxDataById: DbOriginalTxData = config.postgresEnabled
+          ? await pgDb.get(sql, [originalTxData.txId])
+          : await db.get(sql, [originalTxData.txId])
         originalTxData.originalTxData = originalTxDataById.originalTxData
         originalTxData.sign = originalTxDataById.sign
       }
@@ -298,8 +302,13 @@ export async function queryOriginalTxsData(
 
 export async function queryOriginalTxDataByTxId(txId: string): Promise<OriginalTxDataInterface | null> {
   try {
-    const sql = `SELECT * FROM originalTxsData WHERE txId=?`
-    const originalTxData: DbOriginalTxData = await db.get(sql, [txId])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM originalTxsData WHERE txId=$1`
+      : `SELECT * FROM originalTxsData WHERE txId=?`
+
+    const originalTxData: DbOriginalTxData = config.postgresEnabled
+      ? await pgDb.get(sql, [txId])
+      : await db.get(sql, [txId])
     if (originalTxData) {
       if (originalTxData.originalTxData)
         originalTxData.originalTxData = StringUtils.safeJsonParse(originalTxData.originalTxData)
@@ -315,11 +324,21 @@ export async function queryOriginalTxDataByTxId(txId: string): Promise<OriginalT
 
 export async function queryOriginalTxDataByTxHash(txHash: string): Promise<OriginalTxDataInterface | null> {
   try {
-    const sql = `SELECT * FROM originalTxsData2 WHERE txHash=?`
-    const originalTxData: DbOriginalTxData = await db.get(sql, [txHash])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM originalTxsData2 WHERE txHash=$1`
+      : `SELECT * FROM originalTxsData2 WHERE txHash=?`
+
+    const originalTxData: DbOriginalTxData = config.postgresEnabled
+      ? await pgDb.get(sql, [txHash])
+      : await db.get(sql, [txHash])
     if (originalTxData) {
-      const sql = `SELECT * FROM originalTxsData WHERE txId=?`
-      const originalTxDataById: DbOriginalTxData = await db.get(sql, [originalTxData.txId])
+      const sql = config.postgresEnabled
+        ? `SELECT * FROM originalTxsData WHERE txId=$1`
+        : `SELECT * FROM originalTxsData WHERE txId=?`
+
+      const originalTxDataById: DbOriginalTxData = config.postgresEnabled
+        ? await pgDb.get(sql, [originalTxData.txId])
+        : await db.get(sql, [originalTxData.txId])
       originalTxData.originalTxData = originalTxDataById.originalTxData
       originalTxData.sign = originalTxDataById.sign
       if (originalTxData.originalTxData)

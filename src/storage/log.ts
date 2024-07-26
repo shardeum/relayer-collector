@@ -107,22 +107,24 @@ function buildLogQueryString(
   const queryParams = []
   const values = []
   if (countOnly) {
-    sql = 'SELECT COUNT(txHash) FROM logs '
-    if (type === 'txs') sql = 'SELECT COUNT(DISTINCT(txHash)) FROM logs '
+    sql = 'SELECT COUNT(txHash) as "COUNT(txHash)" FROM logs '
+    if (type === 'txs') {
+      sql = 'SELECT COUNT(DISTINCT(txHash)) as "COUNT(DISTINCT(txHash))" FROM logs '
+    }
   } else {
     sql = 'SELECT * FROM logs '
   }
   const fromBlock = request.fromBlock
   const toBlock = request.toBlock
   if (fromBlock && toBlock) {
-    queryParams.push(`blockNumber BETWEEN ? AND ?`)
+    queryParams.push(config.postgresEnabled ? `blockNumber BETWEEN $${values.length + 1} AND $${values.length + 2}` : `blockNumber BETWEEN ? AND ?`)
     values.push(fromBlock, toBlock)
   } else if (request.blockHash) {
-    queryParams.push(`blockHash=?`)
+    queryParams.push(config.postgresEnabled ? `blockHash=$${values.length + 1}` : `blockHash=?`)
     values.push(request.blockHash)
   }
   if (request.address) {
-    queryParams.push(`contractAddress=?`)
+    queryParams.push(config.postgresEnabled ? `contractAddress=$${values.length + 1}` : `contractAddress=?`)
     values.push(request.address)
   }
 
@@ -131,12 +133,12 @@ function buildLogQueryString(
     if (Array.isArray(topicValue)) {
       const validHexValues = topicValue.filter((value) => typeof value === 'string' && hexPattern.test(value))
       if (validHexValues.length > 0) {
-        const query = `topic${topicIndex} IN (${validHexValues.map(() => '?').join(',')})`
+        const query = `topic${topicIndex} IN (${validHexValues.map((_, ind) => config.postgresEnabled ? `$${values.length + 1 + ind}` : '?').join(',')})`
         queryParams.push(query)
         values.push(...validHexValues)
       }
     } else if (typeof topicValue === 'string' && hexPattern.test(topicValue)) {
-      queryParams.push(`topic${topicIndex}=?`)
+      queryParams.push(config.postgresEnabled ? `topic${topicIndex}=$${values.length + 1}` : `topic${topicIndex}=?`)
       values.push(topicValue)
     }
   }
@@ -170,7 +172,9 @@ export async function queryLogCount(
       type
     )
     if (config.verbose) console.log(sql, inputs)
-    logs = await db.get(sql, inputs)
+    logs = config.postgresEnabled
+      ? await pgDb.get(sql, inputs)
+      : await db.get(sql, inputs)
   } catch (e) {
     console.log(e)
   }
@@ -226,8 +230,13 @@ export async function queryLogCountBetweenCycles(
 ): Promise<number> {
   let logs: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM logs WHERE cycle BETWEEN ? AND ?`
-    logs = await db.get(sql, [startCycleNumber, endCycleNumber])
+    const sql = config.postgresEnabled
+      ? `SELECT COUNT(*) as "COUNT(*)" FROM logs WHERE cycle BETWEEN $1 AND $2`
+      : `SELECT COUNT(*) FROM logs WHERE cycle BETWEEN ? AND ?`
+
+    logs = config.postgresEnabled
+      ? await pgDb.get(sql, [startCycleNumber, endCycleNumber])
+      : await db.get(sql, [startCycleNumber, endCycleNumber])
   } catch (e) {
     console.log(e)
   }

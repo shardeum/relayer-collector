@@ -31,7 +31,7 @@ export async function insertCycle(cycle: Cycle): Promise<void> {
         VALUES (${placeholders})
         ON CONFLICT
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
-      `;
+      `
 
       await pgDb.run(sql, values)
     } else {
@@ -57,7 +57,7 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
     const fields = Object.keys(cycles[0]).join(', ')
     const values = extractValuesFromArray(cycles)
     if (config.postgresEnabled) {
-      let sql = `INSERT INTO cycles (${fields}) VALUES `;
+      let sql = `INSERT INTO cycles (${fields}) VALUES `
 
       sql += cycles.map((_, i) => {
         const currentPlaceholders = Object.keys(cycles[0])
@@ -66,7 +66,7 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
       await pgDb.run(sql, values)
     } else {
@@ -175,8 +175,13 @@ export async function queryCycleRecordsBetween(start: number, end: number): Prom
 
 export async function queryCycleByMarker(marker: string): Promise<Cycle | null> {
   try {
-    const sql = `SELECT * FROM cycles WHERE cycleMarker=? LIMIT 1`
-    const cycleRecord: DbCycle = await db.get(sql, [marker])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM cycles WHERE cycleMarker=$1 LIMIT 1`
+      : `SELECT * FROM cycles WHERE cycleMarker=? LIMIT 1`
+
+    const cycleRecord: DbCycle = config.postgresEnabled
+      ? await pgDb.get(sql, [marker])
+      : await db.get(sql, [marker])
     if (cycleRecord) {
       if (cycleRecord.cycleRecord) cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
     }
@@ -191,8 +196,13 @@ export async function queryCycleByMarker(marker: string): Promise<Cycle | null> 
 
 export async function queryCycleByCounter(counter: number): Promise<Cycle | null> {
   try {
-    const sql = `SELECT * FROM cycles WHERE counter=? LIMIT 1`
-    const cycleRecord: DbCycle = await db.get(sql, [counter])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM cycles WHERE counter=$1 LIMIT 1`
+      : `SELECT * FROM cycles WHERE counter=? LIMIT 1`
+
+    const cycleRecord: DbCycle = config.postgresEnabled
+      ? await pgDb.get(sql, [counter])
+      : await db.get(sql, [counter])
     if (cycleRecord) {
       if (cycleRecord.cycleRecord) cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
     }
@@ -208,8 +218,11 @@ export async function queryCycleByCounter(counter: number): Promise<Cycle | null
 export async function queryCycleCount(): Promise<number> {
   let cycles: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM cycles`
-    cycles = await db.get(sql, [])
+    const sql = `SELECT COUNT(*) as "COUNT(*)" FROM cycles`
+
+    cycles = config.postgresEnabled
+      ? await pgDb.get(sql, [])
+      : await db.get(sql, [])
   } catch (e) {
     console.log(e)
   }

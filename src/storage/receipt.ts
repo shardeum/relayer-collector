@@ -395,8 +395,12 @@ export async function processReceiptData(receipts: Receipt[], saveOnlyNewData = 
 
 export async function queryReceiptByReceiptId(receiptId: string): Promise<Receipt | null> {
   try {
-    const sql = `SELECT * FROM receipts WHERE receiptId=?`
-    const receipt: DbReceipt = await db.get(sql, [receiptId])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM receipts WHERE receiptId=$1`
+      : `SELECT * FROM receipts WHERE receiptId=?`
+    const receipt: DbReceipt = config.postgresEnabled
+      ? await pgDb.get(sql, [receiptId])
+      : await db.get(sql, [receiptId])
     if (receipt) deserializeDbReceipt(receipt)
     if (config.verbose) console.log('Receipt receiptId', receipt)
     return receipt as Receipt
@@ -440,8 +444,10 @@ export async function queryReceipts(skip = 0, limit = 10000): Promise<Receipt[]>
 export async function queryReceiptCount(): Promise<number> {
   let receipts: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM receipts`
-    receipts = await db.get(sql, [])
+    const sql = `SELECT COUNT(*) as "COUNT(*)" FROM receipts`
+    receipts = config.postgresEnabled
+      ? await pgDb.get(sql, [])
+      : await db.get(sql, [])
   } catch (e) {
     console.log(e)
   }
@@ -493,8 +499,12 @@ export async function queryReceiptsBetweenCycles(
 export async function queryReceiptCountBetweenCycles(start: number, end: number): Promise<number> {
   let receipts: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM receipts WHERE cycle BETWEEN ? and ?`
-    receipts = await db.get(sql, [start, end])
+    const sql = config.postgresEnabled
+      ? `SELECT COUNT(*) as "COUNT(*)" FROM receipts WHERE cycle BETWEEN $1 AND $2`
+      : `SELECT COUNT(*) FROM receipts WHERE cycle BETWEEN ? AND ?`
+    receipts = config.postgresEnabled
+      ? await pgDb.get(sql, [start, end])
+      : await db.get(sql, [start, end])
   } catch (e) {
     console.log(e)
   }

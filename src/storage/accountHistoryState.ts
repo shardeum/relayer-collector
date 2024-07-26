@@ -22,7 +22,7 @@ export async function insertAccountHistoryState(accountHistoryState: AccountHist
     const values = extractValues(accountHistoryState)
 
     if (config.postgresEnabled) {
-      const placeholders = Object.keys(accountHistoryState).map((_, i) => `$${i + 1}`).join(', ');
+      const placeholders = Object.keys(accountHistoryState).map((_, i) => `$${i + 1}`).join(', ')
 
       const sql = `
         INSERT INTO accountHistoryState (${fields})
@@ -69,9 +69,9 @@ export async function bulkInsertAccountHistoryStates(
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
-      await pgDb.run(sql, values);
+      await pgDb.run(sql, values)
     } else {
       const placeholders = Object.keys(accountHistoryStates[0]).fill('?').join(', ')
 
@@ -94,17 +94,23 @@ export async function queryAccountHistoryState(
   blockHash = undefined
 ): Promise<Account | null> {
   try {
-    let sql = `SELECT * FROM accountHistoryState WHERE accountId=? AND `
+    let sql = config.postgresEnabled
+      ? `SELECT * FROM accountHistoryState WHERE accountId=$1`
+      : `SELECT * FROM accountHistoryState WHERE accountId=?`
     const values = [accountId]
     if (blockNumber) {
-      sql += `blockNumber<? ORDER BY blockNumber DESC LIMIT 1`
+      sql += config.postgresEnabled
+        ? ` AND blockNumber<$2 ORDER BY blockNumber DESC LIMIT 1`
+        : ` AND blockNumber<? ORDER BY blockNumber DESC LIMIT 1`
       values.push(blockNumber)
     }
     // if (blockHash) {
     //   sql += `blockHash=? DESC LIMIT 1`
     //   values.push(blockHash)
     // }
-    const accountHistoryState: AccountHistoryState = await db.get(sql, values)
+    const accountHistoryState: AccountHistoryState = config.postgresEnabled
+      ? await pgDb.get(sql, values)
+      : await db.get(sql, values)
     if (accountHistoryState) {
       if (config.verbose) console.log('AccountHistoryState', accountHistoryState)
       const receipt = await ReceiptDB.queryReceiptByReceiptId(accountHistoryState.receiptId)
@@ -151,8 +157,10 @@ export async function queryAccountHistoryState(
 export async function queryAccountHistoryStateCount(): Promise<number> {
   let accountHistoryStates: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM accountHistoryState`
-    accountHistoryStates = await db.get(sql, [])
+    const sql = `SELECT COUNT(*) as "COUNT(*)" FROM accountHistoryState`
+    accountHistoryStates = config.postgresEnabled
+      ? await pgDb.get(sql, [])
+      : await db.get(sql, [])
   } catch (e) {
     console.log(e)
   }

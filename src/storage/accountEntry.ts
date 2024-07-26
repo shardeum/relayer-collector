@@ -55,7 +55,7 @@ export async function bulkInsertAccountEntries(accounts: Account[]): Promise<voi
     if (config.postgresEnabled) {
       const placeholders = Object.keys(accountEntries[0]).map((_, i) => `$${i + 1}`).join(', ')
 
-      let sql = `INSERT INTO accountsEntry (${fields}) VALUES `;
+      let sql = `INSERT INTO accountsEntry (${fields}) VALUES `
 
       sql += accountEntries.map((_, i) => {
         const currentPlaceholders = Object.keys(accountEntries[0])
@@ -64,7 +64,7 @@ export async function bulkInsertAccountEntries(accounts: Account[]): Promise<voi
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql = `${sql} ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+      sql = `${sql} ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values, 'shardeumIndexer')
     }
     else {
@@ -95,7 +95,7 @@ export async function updateAccountEntry(_accountId: string, account: Partial<Ac
         account.timestamp,
         account.account && StringUtils.safeStringify(account.account),
         account.accountId
-      ];
+      ]
 
       await pgDb.run(sql, values, 'shardeumIndexer')
     }
@@ -125,8 +125,10 @@ export async function updateAccountEntry(_accountId: string, account: Partial<Ac
 export async function queryAccountEntryCount(): Promise<number> {
   let accountEntries: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM accountsEntry`
-    accountEntries = await db.get(sql, [], 'shardeumIndexer')
+    const sql = `SELECT COUNT(*) as "COUNT(*)" FROM accountsEntry`
+    accountEntries = config.postgresEnabled
+      ? await pgDb.get(sql, [], 'shardeumIndexer')
+      : await db.get(sql, [], 'shardeumIndexer')
   } catch (e) {
     console.log(e)
   }
