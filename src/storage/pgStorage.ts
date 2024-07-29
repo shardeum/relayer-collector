@@ -1,6 +1,8 @@
-import { Client } from 'pg'
+import { Client, types } from 'pg'
 import { config } from '../config'
 import { Utils as StringUtils } from '@shardus/types'
+
+types.setTypeParser(20, BigInt);
 
 const pgDefaultDBClient = new Client({ connectionString: config.pgDefaultDBConnectionString })
 const pgShardeumIndexerDBClient = new Client({ connectionString: config.pgShardeumIndexerDBConnectionString })
