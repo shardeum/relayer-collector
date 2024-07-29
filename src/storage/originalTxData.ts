@@ -179,15 +179,20 @@ export async function queryOriginalTxDataCount(
 ): Promise<number> {
   let originalTxsData: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    let sql = `SELECT COUNT(*) FROM originalTxsData`
+    let sql = `SELECT COUNT(*) as "COUNT(*)" FROM originalTxsData`
     const values: unknown[] = []
     if (startCycle && endCycle) {
-      sql += ` WHERE cycle BETWEEN ? AND ?`
+      sql += config.postgresEnabled
+        ? ` WHERE cycle BETWEEN $${values.length + 1} AND $${values.length + 2}`
+        : ` WHERE cycle BETWEEN ? AND ?`
       values.push(startCycle, endCycle)
     }
     if (afterTimestamp) {
-      if (startCycle && endCycle) sql += ` AND timestamp>?`
-      else sql += ` WHERE timestamp>?`
+      if (startCycle && endCycle) {
+        sql += config.postgresEnabled ? ` AND timestamp>$${values.length + 1}` : ` AND timestamp>?`
+      } else {
+        sql += config.postgresEnabled ? ` WHERE timestamp>$${values.length + 1}` : ` WHERE timestamp>?`
+      }
       values.push(afterTimestamp)
     }
     if (txType) {
@@ -195,7 +200,7 @@ export async function queryOriginalTxDataCount(
       if ((startCycle && endCycle) || afterTimestamp) sql += ` AND`
       else sql += ` WHERE`
       if (txType === TransactionSearchType.AllExceptInternalTx) {
-        sql += ` transactionType!=?`
+        sql += config.postgresEnabled ? ` transactionType!=$${values.length + 1}` : ` transactionType!=?`
         values.push(TransactionType.InternalTxReceipt)
       } else if (
         txType === TransactionSearchType.Receipt ||
@@ -214,11 +219,13 @@ export async function queryOriginalTxDataCount(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        sql += ` transactionType=?`
+        sql += config.postgresEnabled ? ` transactionType=$${values.length + 1}` : ` transactionType=?`
         values.push(ty)
       }
     }
-    originalTxsData = await db.get(sql, values)
+    originalTxsData = config.postgresEnabled
+      ? await pgDb.get(sql, values)
+      : await db.get(sql, values)
   } catch (e) {
     console.log(e)
   }

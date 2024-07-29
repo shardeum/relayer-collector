@@ -433,8 +433,12 @@ export async function queryTokenBalance(
 export async function queryTokenHolderCount(contractAddress: string): Promise<number> {
   let tokens: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM tokens WHERE contractAddress=?`
-    tokens = await db.get(sql, [contractAddress])
+    const sql = config.postgresEnabled
+      ? `SELECT COUNT(*) as "COUNT(*)" FROM tokens WHERE contractAddress=$1`
+      : `SELECT COUNT(*) FROM tokens WHERE contractAddress=?`
+    tokens = config.postgresEnabled
+      ? await pgDb.get(sql, [contractAddress])
+      : await db.get(sql, [contractAddress])
   } catch (e) {
     console.log(e)
   }
