@@ -7,6 +7,8 @@ types.setTypeParser(20, BigInt);
 const pgDefaultDBClient = new Client({ connectionString: config.pgDefaultDBConnectionString })
 const pgShardeumIndexerDBClient = new Client({ connectionString: config.pgShardeumIndexerDBConnectionString })
 
+const COLUMN_EXCHANGER = ["accountId", "accountType", "afterStateHash", "appReceiptData", "appliedReceipt", "beforeStateAccounts", "beforeStateHash", "blockHash", "blockNumber", "contractInfo", "contractType", "cycleMarker", "cycleRecord", "ethAddress", "executionShardKey", "globalModification", "isGlobal", "numberHex", "originalTxData", "readableBlock", "receiptId", "tokenEvent", "tokenFrom", "tokenOperator", "tokenTo", "tokenType", "tokenValue", "transactionFee", "transactionType", "txFrom", "txHash", "txId", "txTo", "wrappedEVMAccount"]
+
 export type DbName = 'default' | 'shardeumIndexer'
 
 export interface DbOptions {
@@ -34,15 +36,27 @@ function getClient(dbName: DbName): Client {
 }
 
 export async function runCreate(createStatement: string, dbName: DbName = 'default'): Promise<void> {
-  await run(createStatement, [], dbName)
+  await run(createStatement, [], dbName, false)
+}
+
+function fixSQLCasing(sql: string) {
+  for (let index = 0; index < COLUMN_EXCHANGER.length; index++) {
+    const word = COLUMN_EXCHANGER[index]
+    sql = sql.replace(new RegExp(`(?<!")${word}(?!")`, "g"), `"${word}"`);
+  }
+
+  return sql
 }
 
 export async function run(
   sql: string,
   params: unknown[] | object = [],
-  dbName: DbName = 'default'
+  dbName: DbName = 'default',
+  enforceCase = true
 ): Promise<{ rowCount: any }> {
   return new Promise((resolve, reject) => {
+    if (enforceCase) sql = fixSQLCasing(sql)
+
     getClient(dbName).query({ text: sql, values: params }).then((res) => {
       resolve({ rowCount: res.rowCount })
     }).catch((err) => {
@@ -59,6 +73,8 @@ export async function get<T>(
   params: unknown[] | object = [],
   dbName: DbName = 'default'
 ): Promise<T> {
+  sql = fixSQLCasing(sql)
+
   return new Promise((resolve, reject) => {
     getClient(dbName).query({ text: sql, values: params }).then((res) => {
       resolve(res.rows?.[0])
@@ -76,6 +92,8 @@ export async function all<T>(
   params: unknown[] | object = [],
   dbName: DbName = 'default'
 ): Promise<T[]> {
+  sql = fixSQLCasing(sql)
+
   return new Promise((resolve, reject) => {
     getClient(dbName).query({ text: sql, values: params }).then((res) => {
       resolve(res.rows)
