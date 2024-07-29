@@ -28,12 +28,7 @@ export async function init(config: { enableShardeumIndexer: boolean }): Promise<
 }
 
 function getClient(dbName: DbName): Client {
-  switch (dbName) {
-    case 'default':
-      return pgDefaultDBClient
-    case 'shardeumIndexer':
-      return pgShardeumIndexerDBClient
-  }
+  return pgDefaultDBClient
 }
 
 export async function runCreate(createStatement: string, dbName: DbName = 'default'): Promise<void> {
