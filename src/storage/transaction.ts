@@ -810,7 +810,7 @@ export async function queryTransactionsForCycle(cycleNumber: number): Promise<Tr
   let transactions: DbTransaction[] = []
   try {
     const sql = config.postgresEnabled
-      ? `SELECT * FROM transactions WHERE cycle=$1 ORDER BY timestamp ASC`
+      ? `SELECT *, wrappedEVMAccount::TEXT, originalTxData::TEXT FROM transactions WHERE cycle=$1 ORDER BY timestamp ASC`
       : `SELECT * FROM transactions WHERE cycle=? ORDER BY timestamp ASC`
     transactions = config.postgresEnabled
       ? await pgDb.all(sql, [cycleNumber])
