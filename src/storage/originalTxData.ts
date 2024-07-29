@@ -240,20 +240,26 @@ export async function queryOriginalTxsData(
     const sqlSuffix = ` ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
     const values: unknown[] = []
     if (startCycle && endCycle) {
-      sql += ` WHERE cycle BETWEEN ? AND ?`
+      sql += config.postgresEnabled ? ` WHERE cycle BETWEEN $1 AND $2` : ` WHERE cycle BETWEEN ? AND ?`
       values.push(startCycle, endCycle)
     }
     if (afterTimestamp) {
-      if (startCycle && endCycle) sql += ` AND timestamp>?`
-      else sql += ` WHERE timestamp>?`
+      if (startCycle && endCycle) {
+        sql += config.postgresEnabled ? ` AND timestamp>$${values.length + 1}` : ` AND timestamp>?`
+      } else {
+        sql += config.postgresEnabled ? ` WHERE timestamp>$${values.length + 1}` : ` WHERE timestamp>?`
+      }
       values.push(afterTimestamp)
     }
     if (txType) {
       sql = sql.replace('originalTxsData', 'originalTxsData2')
-      if ((startCycle && endCycle) || afterTimestamp) sql += ` AND`
-      else sql += ` WHERE`
+      if ((startCycle && endCycle) || afterTimestamp) {
+        sql += ' AND'
+      } else {
+        sql += ' WHERE'
+      }
       if (txType === TransactionSearchType.AllExceptInternalTx) {
-        sql += ` transactionType!=?`
+        sql += config.postgresEnabled ? ` transactionType!=$${values.length + 1}` : ` transactionType!=?`
         values.push(TransactionType.InternalTxReceipt)
       } else if (
         txType === TransactionSearchType.Receipt ||
@@ -272,12 +278,14 @@ export async function queryOriginalTxsData(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        sql += ` transactionType=?`
+        sql += config.postgresEnabled ? ` transactionType=$${values.length + 1}` : ` transactionType=?`
         values.push(ty)
       }
     }
     sql += sqlSuffix
-    originalTxsData = await db.all(sql, values)
+    originalTxsData = config.postgresEnabled
+      ? await pgDb.all(sql, values)
+      : await db.all(sql, values)
     for (const originalTxData of originalTxsData) {
       if (txType) {
         const sql = config.postgresEnabled
@@ -359,8 +367,12 @@ export async function queryOriginalTxDataCountByCycles(
 ): Promise<{ originalTxsData: number; cycle: number }[]> {
   let originalTxsData: { cycle: number; 'COUNT(*)': number }[] = []
   try {
-    const sql = `SELECT cycle, COUNT(*) FROM originalTxsData GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
-    originalTxsData = await db.all(sql, [start, end])
+    const sql = config.postgresEnabled
+      ? `SELECT cycle, COUNT(*) as "COUNT(*)" FROM originalTxsData GROUP BY cycle HAVING cycle BETWEEN $1 AND $2 ORDER BY cycle ASC`
+      : `SELECT cycle, COUNT(*) as "COUNT(*)" FROM originalTxsData GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
+    originalTxsData = config.postgresEnabled
+      ? await pgDb.all(sql, [start, end])
+      : await db.all(sql, [start, end])
   } catch (e) {
     console.log(e)
   }

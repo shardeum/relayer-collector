@@ -211,7 +211,11 @@ export async function queryLogs(
       sqlQueryExtension = ` GROUP BY txHash` + sqlQueryExtension
     }
     if (config.verbose) console.log(sql, inputs)
-    logs = await db.all(sql + sqlQueryExtension, inputs)
+    const finalSql = sql + sqlQueryExtension
+
+    logs = config.postgresEnabled
+      ? await pgDb.all(finalSql, inputs)
+      : await db.all(finalSql, inputs)
     if (logs.length > 0) {
       logs.forEach((log: DbLog) => {
         if (log.log) (log as Log).log = StringUtils.safeJsonParse(log.log)
@@ -255,8 +259,12 @@ export async function queryLogsBetweenCycles(
 ): Promise<Log[]> {
   let logs: DbLog[] = []
   try {
-    const sql = `SELECT * FROM logs WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-    logs = await db.all(sql, [startCycleNumber, endCycleNumber])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM logs WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+      : `SELECT * FROM logs WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+    logs = config.postgresEnabled
+      ? await pgDb.all(sql, [startCycleNumber, endCycleNumber])
+      : await db.all(sql, [startCycleNumber, endCycleNumber])
     if (logs.length > 0) {
       logs.forEach((log: DbLog) => {
         if (log.log) (log as Log).log = StringUtils.safeJsonParse(log.log)
@@ -290,14 +298,14 @@ export async function queryLogsByFilter(logFilter: LogFilter, limit = 5000): Pro
     let sql = `SELECT log FROM logs WHERE 1 = 1`
 
     if (isArray(address) && address.length > 0) {
-      sql += ` AND contractAddress IN (${address.map(() => `?`).join(',')})`
+      sql += ` AND contractAddress IN (${address.map((_, index) => config.postgresEnabled ? `$${queryParams.length + index + 1}` : `?`).join(',')})`
       for (const addr of address) {
         queryParams.push(addr.toLowerCase())
       }
     }
 
     if (blockHash) {
-      sql += ` AND blockHash = ?`
+      sql += ` AND blockHash = ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
       queryParams.push(blockHash.toLowerCase())
     } else {
       if (fromBlock == 'latest') {
@@ -311,7 +319,7 @@ export async function queryLogsByFilter(logFilter: LogFilter, limit = 5000): Pro
         sql += ` AND blockNumber >= 0`
       }
       if (fromBlock && fromBlock !== 'latest' && fromBlock !== 'earliest') {
-        sql += ` AND blockNumber >= ?`
+        sql += ` AND blockNumber >= ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
         queryParams.push(Number(fromBlock))
       }
 
@@ -326,35 +334,37 @@ export async function queryLogsByFilter(logFilter: LogFilter, limit = 5000): Pro
         sql += ` AND blockNumber <= 0`
       }
       if (toBlock && toBlock !== 'latest' && toBlock !== 'earliest') {
-        sql += ` AND blockNumber <= ?`
+        sql += ` AND blockNumber <= ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
         queryParams.push(Number(toBlock))
       }
     }
 
     if (topics[0]) {
-      sql += ` AND topic0 = ?`
+      sql += ` AND topic0 = ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
       queryParams.push(topics[0].toLowerCase())
     }
     if (topics[1]) {
-      sql += ` AND topic1 = ?`
+      sql += ` AND topic1 = ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
       queryParams.push(topics[1].toLowerCase())
     }
     if (topics[2]) {
-      sql += ` AND topic2 = ?`
+      sql += ` AND topic2 = ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
       queryParams.push(topics[2].toLowerCase())
     }
     if (topics[3]) {
-      sql += ` AND topic3 = ?`
+      sql += ` AND topic3 = ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
       queryParams.push(topics[3].toLowerCase())
     }
-    sql += ` ORDER BY blockNumber ASC LIMIT ?;`
+    sql += ` ORDER BY blockNumber ASC LIMIT ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
     queryParams.push(limit)
 
     if (config.verbose) console.log(`queryLogsByFilter: Query: `, sql, queryParams)
     return sql
   }
   const sql = createSqlFromEvmLogFilter(logFilter)
-  logs = await db.all(sql, queryParams)
+  logs = config.postgresEnabled
+    ? await pgDb.all(sql, queryParams)
+    : await db.all(sql, queryParams)
   if (logs.length > 0) {
     logs.forEach((log: DbLog) => {
       if (log.log) (log as Log).log = StringUtils.safeJsonParse(log.log)

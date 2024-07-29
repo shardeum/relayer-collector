@@ -551,8 +551,12 @@ export async function queryTransactions(
   try {
     if (address) {
       if (!txType) {
-        const sql = `SELECT * FROM transactions WHERE (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-        transactions = await db.all(sql, [address, address, address])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM transactions WHERE (txFrom=$1 OR txTo=$2 OR nominee=$3) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM transactions WHERE (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, [address, address, address])
+          : await db.all(sql, [address, address, address])
       } else if (txType === TransactionSearchType.AllExceptInternalTx) {
         // const sql = `SELECT * FROM transactions WHERE (transactionType=? OR transactionType=? OR transactionType=?) AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
         // transactions = await db.all(sql, [
@@ -563,8 +567,12 @@ export async function queryTransactions(
         //   address,
         //   address,
         // ])
-        const sql = `SELECT * FROM transactions WHERE transactionType!=? AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-        transactions = await db.all(sql, [TransactionType.InternalTxReceipt, address, address, address])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM transactions WHERE transactionType!=$1 AND (txFrom=$2 OR txTo=$3 OR nominee=$4) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM transactions WHERE transactionType!=? AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, [TransactionType.InternalTxReceipt, address, address, address])
+          : await db.all(sql, [TransactionType.InternalTxReceipt, address, address, address])
       } else if (
         txType === TransactionSearchType.Receipt ||
         txType === TransactionSearchType.NodeRewardReceipt ||
@@ -582,18 +590,30 @@ export async function queryTransactions(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        let sql = `SELECT * FROM transactions WHERE transactionType=? AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        let sql = config.postgresEnabled
+          ? `SELECT * FROM transactions WHERE transactionType=$1 AND (txFrom=$2 OR txTo=$3 OR nominee=$4) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM transactions WHERE transactionType=? AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
         if (txType === TransactionSearchType.InternalTxReceipt) {
-          sql = `SELECT * FROM transactions WHERE (transactionType!=? AND transactionType!=? AND transactionType!=?) AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-          transactions = await db.all(sql, [
+          sql = config.postgresEnabled
+            ? `SELECT * FROM transactions WHERE (transactionType!=$1 AND transactionType!=$2 AND transactionType!=$3) AND (txFrom=$4 OR txTo=$5 OR nominee=$6) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+            : `SELECT * FROM transactions WHERE (transactionType!=? AND transactionType!=? AND transactionType!=?) AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          const values = [
             TransactionType.Receipt,
             TransactionType.StakeReceipt,
             TransactionType.UnstakeReceipt,
             address,
             address,
             address,
-          ])
-        } else transactions = await db.all(sql, [ty, address, address, address])
+          ]
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, values)
+            : await db.all(sql, values)
+        } else {
+          const values = [ty, address, address, address]
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, values)
+            : await db.all(sql, values)
+        }
       } else if (
         txType === TransactionSearchType.EVM_Internal ||
         txType === TransactionSearchType.ERC_20 ||
@@ -608,28 +628,46 @@ export async function queryTransactions(
               : txType === TransactionSearchType.ERC_721
                 ? TransactionType.ERC_721
                 : TransactionType.ERC_1155
-        const sql = `SELECT * FROM tokenTxs WHERE (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND tokenType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-        transactions = await db.all(sql, [address, address, address, ty])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM tokenTxs WHERE (tokenFrom=$1 OR tokenTo=$2 OR tokenOperator=$3) AND tokenType=$4 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM tokenTxs WHERE (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND tokenType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, [address, address, address, ty])
+          : await db.all(sql, [address, address, address, ty])
       } else if (txType === TransactionSearchType.TokenTransfer) {
         if (filterAddress) {
-          const sql = `SELECT * FROM tokenTxs WHERE contractAddress=? AND (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND NOT (tokenType=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-          transactions = await db.all(sql, [
+          const sql = config.postgresEnabled
+            ? `SELECT * FROM tokenTxs WHERE contractAddress=$1 AND (tokenFrom=$2 OR tokenTo=$3 OR tokenOperator=$4) AND NOT (tokenType=$5) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+            : `SELECT * FROM tokenTxs WHERE contractAddress=? AND (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND NOT (tokenType=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          const values = [
             address,
             filterAddress,
             filterAddress,
             filterAddress,
             TransactionType.EVM_Internal,
-          ])
+          ]
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, values)
+            : await db.all(sql, values)
         } else {
-          const sql = `SELECT * FROM tokenTxs WHERE contractAddress=? AND NOT (tokenType=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-          transactions = await db.all(sql, [address, TransactionType.EVM_Internal])
+          const sql = config.postgresEnabled
+            ? `SELECT * FROM tokenTxs WHERE contractAddress=$1 AND NOT (tokenType=$2) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+            : `SELECT * FROM tokenTxs WHERE contractAddress=? AND NOT (tokenType=?) ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, [address, TransactionType.EVM_Internal])
+            : await db.all(sql, [address, TransactionType.EVM_Internal])
         }
       }
     } else if (txType) {
       if (txType === TransactionSearchType.AllExceptInternalTx) {
         const ty = TransactionType.InternalTxReceipt
-        const sql = `SELECT * FROM transactions WHERE transactionType!=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-        transactions = await db.all(sql, [ty])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM transactions WHERE transactionType!=$1 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM transactions WHERE transactionType!=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, [ty])
+          : await db.all(sql, [ty])
       } else if (
         txType === TransactionSearchType.Receipt ||
         txType === TransactionSearchType.NodeRewardReceipt ||
@@ -647,16 +685,25 @@ export async function queryTransactions(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        let sql = `SELECT * FROM transactions WHERE transactionType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        let sql = config.postgresEnabled
+          ? `SELECT * FROM transactions WHERE transactionType=$1 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM transactions WHERE transactionType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
         if (txType === TransactionSearchType.InternalTxReceipt) {
-          sql = `SELECT * FROM transactions WHERE transactionType!=? AND transactionType!=? AND transactionType!=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-          transactions = await db.all(sql, [
+          sql = config.postgresEnabled
+            ? `SELECT * FROM transactions WHERE transactionType!=$1 AND transactionType!=$2 AND transactionType!=$3 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+            : `SELECT * FROM transactions WHERE transactionType!=? AND transactionType!=? AND transactionType!=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          const values = [
             TransactionType.Receipt,
             TransactionType.StakeReceipt,
             TransactionType.UnstakeReceipt,
-          ])
+          ]
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, values)
+            : await db.all(sql, values)
         } else {
-          transactions = await db.all(sql, [ty])
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, [ty])
+            : await db.all(sql, [ty])
         }
       } else if (
         txType === TransactionSearchType.EVM_Internal ||
@@ -672,12 +719,19 @@ export async function queryTransactions(
               : txType === TransactionSearchType.ERC_721
                 ? TransactionType.ERC_721
                 : TransactionType.ERC_1155
-        const sql = `SELECT * FROM tokenTxs WHERE tokenType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-        transactions = await db.all(sql, [ty])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM tokenTxs WHERE tokenType=$1 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM tokenTxs WHERE tokenType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, [ty])
+          : await db.all(sql, [ty])
       }
     } else {
       const sql = `SELECT * FROM transactions ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-      transactions = await db.all(sql)
+      transactions = config.postgresEnabled
+        ? await pgDb.all(sql)
+        : await db.all(sql)
     }
 
     if (transactions.length > 0) {
@@ -708,8 +762,12 @@ export async function queryTransactionByTxId(txId: string, detail = false): Prom
       deserializeDbTransaction(transaction)
     }
     if (detail) {
-      const sql = `SELECT * FROM tokenTxs WHERE txId=?`
-      const tokenTxs: DbTokenTx[] = await db.all(sql, [txId])
+      const sql = config.postgresEnabled
+        ? `SELECT * FROM tokenTxs WHERE txId=$1`
+        : `SELECT * FROM tokenTxs WHERE txId=?`
+      const tokenTxs: DbTokenTx[] = config.postgresEnabled
+        ? await pgDb.all(sql, [txId])
+        : await db.all(sql, [txId])
       if (tokenTxs.length > 0) {
         tokenTxs.forEach((tokenTx: DbTokenTx) => deserializeDbToken(tokenTx))
         transaction.tokenTxs = tokenTxs
@@ -751,8 +809,12 @@ export async function queryTransactionByHash(txHash: string, detail = false): Pr
 export async function queryTransactionsForCycle(cycleNumber: number): Promise<Transaction[]> {
   let transactions: DbTransaction[] = []
   try {
-    const sql = `SELECT * FROM transactions WHERE cycle=? ORDER BY timestamp ASC`
-    transactions = await db.all(sql, [cycleNumber])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM transactions WHERE cycle=$1 ORDER BY timestamp ASC`
+      : `SELECT * FROM transactions WHERE cycle=? ORDER BY timestamp ASC`
+    transactions = config.postgresEnabled
+      ? await pgDb.all(sql, [cycleNumber])
+      : await db.all(sql, [cycleNumber])
     if (transactions.length > 0) {
       transactions.forEach((transaction: DbTransaction) => deserializeDbTransaction(transaction))
     }
@@ -776,12 +838,22 @@ export async function queryTransactionsBetweenCycles(
   try {
     if (address) {
       if (!txType || TransactionSearchType.All) {
-        const sql = `SELECT * FROM transactions WHERE cycle BETWEEN ? and ? AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-        transactions = await db.all(sql, [start, end, address, address, address])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM transactions WHERE cycle BETWEEN $1 AND $2 AND (txFrom=$3 OR txTo=$4 OR nominee=$5) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM transactions WHERE cycle BETWEEN ? AND ? AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        const values = [start, end, address, address, address]
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, values)
+          : await db.all(sql, values)
       } else if (txType === TransactionSearchType.AllExceptInternalTx) {
         const ty = TransactionType.InternalTxReceipt
-        const sql = `SELECT * FROM transactions WHERE cycle BETWEEN ? and ? AND transactionType!=? AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-        transactions = await db.all(sql, [start, end, ty, address, address, address])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM transactions WHERE cycle BETWEEN $1 AND $2 AND transactionType!=$3 AND (txFrom=$4 OR txTo=$5 OR nominee=$6) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM transactions WHERE cycle BETWEEN ? AND ? AND transactionType!=? AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        const values = [start, end, ty, address, address, address]
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, values)
+          : await db.all(sql, values)
       } else if (
         txType === TransactionSearchType.Receipt ||
         txType === TransactionSearchType.NodeRewardReceipt ||
@@ -799,10 +871,14 @@ export async function queryTransactionsBetweenCycles(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        let sql = `SELECT * FROM transactions WHERE cycle BETWEEN ? and ? AND transactionType=? AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        let sql = config.postgresEnabled
+          ? `SELECT * FROM transactions WHERE cycle BETWEEN $1 AND $2 AND transactionType=$3 AND (txFrom=$4 OR txTo=$5 OR nominee=$6) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM transactions WHERE cycle BETWEEN ? AND ? AND transactionType=? AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
         if (txType === TransactionSearchType.InternalTxReceipt) {
-          sql = `SELECT * FROM transactions WHERE cycle BETWEEN ? and ? AND (transactionType!=? AND transactionType!=? AND transactionType!=?) AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-          transactions = await db.all(sql, [
+          sql = config.postgresEnabled
+            ? `SELECT * FROM transactions WHERE cycle BETWEEN $1 AND $2 AND (transactionType!=$3 AND transactionType!=$4 AND transactionType!=$5) AND (txFrom=$6 OR txTo=$7 OR nominee=$8) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+            : `SELECT * FROM transactions WHERE cycle BETWEEN ? AND ? AND (transactionType!=? AND transactionType!=? AND transactionType!=?) AND (txFrom=? OR txTo=? OR nominee=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          const values = [
             start,
             end,
             TransactionType.Receipt,
@@ -811,8 +887,16 @@ export async function queryTransactionsBetweenCycles(
             address,
             address,
             address,
-          ])
-        } else transactions = await db.all(sql, [start, end, ty, address, address, address])
+          ]
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, values)
+            : await db.all(sql, values)
+        } else {
+          const values = [start, end, ty, address, address, address]
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, values)
+            : await db.all(sql, values)
+        }
       } else if (
         txType === TransactionSearchType.EVM_Internal ||
         txType === TransactionSearchType.ERC_20 ||
@@ -827,23 +911,30 @@ export async function queryTransactionsBetweenCycles(
               : txType === TransactionSearchType.ERC_721
                 ? TransactionType.ERC_721
                 : TransactionType.ERC_1155
-        const sql = `SELECT * FROM tokenTxs WHERE cycle BETWEEN ? and ? AND (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND tokenType=? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-        transactions = await db.all(sql, [start, end, address, address, address, ty])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM tokenTxs WHERE cycle BETWEEN $1 AND $2 AND (tokenFrom=$3 OR tokenTo=$4 OR tokenOperator=$5) AND tokenType=$6 ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM tokenTxs WHERE cycle BETWEEN ? AND ? AND (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND tokenType=? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        const values = [start, end, address, address, address, ty]
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, values)
+          : await db.all(sql, values)
       } else if (txType === TransactionSearchType.TokenTransfer) {
         if (filterAddress) {
-          const sql = `SELECT * FROM tokenTxs WHERE cycle BETWEEN ? and ? AND contractAddress=? AND (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND NOT (tokenType=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-          transactions = await db.all(sql, [
-            start,
-            end,
-            address,
-            filterAddress,
-            filterAddress,
-            filterAddress,
-            TransactionType.EVM_Internal,
-          ])
+          const sql = config.postgresEnabled
+            ? `SELECT * FROM tokenTxs WHERE cycle BETWEEN $1 AND $2 AND contractAddress=$3 AND (tokenFrom=$4 OR tokenTo=$5 OR tokenOperator=$6) AND NOT (tokenType=$7) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+            : `SELECT * FROM tokenTxs WHERE cycle BETWEEN ? AND ? AND contractAddress=? AND (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND NOT (tokenType=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          const values = [start, end, address, filterAddress, filterAddress, filterAddress, TransactionType.EVM_Internal]
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, values)
+            : await db.all(sql, values)
         } else {
-          const sql = `SELECT * FROM tokenTxs WHERE cycle BETWEEN ? and ? AND contractAddress=? AND NOT (tokenType=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-          transactions = await db.all(sql, [start, end, address, TransactionType.EVM_Internal])
+          const sql = config.postgresEnabled
+            ? `SELECT * FROM tokenTxs WHERE cycle BETWEEN $1 AND $2 AND contractAddress=$3 AND NOT (tokenType=$4) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+            : `SELECT * FROM tokenTxs WHERE cycle BETWEEN ? AND ? AND contractAddress=? AND NOT (tokenType=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          const values = [start, end, address, TransactionType.EVM_Internal]
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, values)
+            : await db.all(sql, values)
         }
       }
     } else if (txType) {
@@ -853,14 +944,19 @@ export async function queryTransactionsBetweenCycles(
         // transactions = await db.all(sql, [start, end, ty])
 
         // This seems to be faster than the above query
-        const sql = `SELECT * FROM transactions WHERE cycle BETWEEN ? and ? AND (transactionType=? OR transactionType=? OR transactionType=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-        transactions = await db.all(sql, [
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM transactions WHERE cycle BETWEEN $1 AND $2 AND (transactionType=$3 OR transactionType=$4 OR transactionType=$5) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM transactions WHERE cycle BETWEEN ? AND ? AND (transactionType=? OR transactionType=? OR transactionType=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        const values = [
           start,
           end,
           TransactionType.Receipt,
           TransactionType.StakeReceipt,
           TransactionType.UnstakeReceipt,
-        ])
+        ]
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, values)
+          : await db.all(sql, values)
       } else if (
         txType === TransactionSearchType.Receipt ||
         txType === TransactionSearchType.NodeRewardReceipt ||
@@ -878,18 +974,27 @@ export async function queryTransactionsBetweenCycles(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        let sql = `SELECT * FROM transactions WHERE cycle BETWEEN ? and ? AND transactionType=? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        let sql = config.postgresEnabled
+          ? `SELECT * FROM transactions WHERE cycle BETWEEN $1 AND $2 AND transactionType=$3 ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM transactions WHERE cycle BETWEEN ? AND ? AND transactionType=? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
         if (txType === TransactionSearchType.InternalTxReceipt) {
-          sql = `SELECT * FROM transactions WHERE cycle BETWEEN ? and ? AND (transactionType!=? AND transactionType!=? AND transactionType!=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-          transactions = await db.all(sql, [
+          sql = config.postgresEnabled
+            ? `SELECT * FROM transactions WHERE cycle BETWEEN $1 AND $2 AND (transactionType!=$3 AND transactionType!=$4 AND transactionType!=$5) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+            : `SELECT * FROM transactions WHERE cycle BETWEEN ? AND ? AND (transactionType!=? AND transactionType!=? AND transactionType!=?) ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          const values = [
             start,
             end,
             TransactionType.Receipt,
             TransactionType.StakeReceipt,
             TransactionType.UnstakeReceipt,
-          ])
+          ]
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, values)
+            : await db.all(sql, values)
         } else {
-          transactions = await db.all(sql, [start, end, ty])
+          transactions = config.postgresEnabled
+            ? await pgDb.all(sql, [start, end, ty])
+            : await db.all(sql, [start, end, ty])
         }
       } else if (
         txType === TransactionSearchType.EVM_Internal ||
@@ -905,12 +1010,20 @@ export async function queryTransactionsBetweenCycles(
               : txType === TransactionSearchType.ERC_721
                 ? TransactionType.ERC_721
                 : TransactionType.ERC_1155
-        const sql = `SELECT * FROM tokenTxs WHERE cycle BETWEEN ? and ? AND tokenType=? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-        transactions = await db.all(sql, [start, end, ty])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM tokenTxs WHERE cycle BETWEEN $1 AND $2 AND tokenType=$3 ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM tokenTxs WHERE cycle BETWEEN ? AND ? AND tokenType=? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, [start, end, ty])
+          : await db.all(sql, [start, end, ty])
       }
     } else {
-      const sql = `SELECT * FROM transactions WHERE cycle BETWEEN ? and ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-      transactions = await db.all(sql, [start, end])
+      const sql = config.postgresEnabled
+        ? `SELECT * FROM transactions WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        : `SELECT * FROM transactions WHERE cycle BETWEEN ? AND ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+      transactions = config.postgresEnabled
+        ? await pgDb.all(sql, [start, end])
+        : await db.all(sql, [start, end])
     }
     if (transactions.length > 0) {
       transactions.forEach((transaction: DbTransaction | DbTokenTx) => {
@@ -1163,20 +1276,35 @@ export async function queryTransactionCountByCycles(
               : txType === TransactionSearchType.UnstakeReceipt
                 ? TransactionType.UnstakeReceipt
                 : TransactionType.InternalTxReceipt
-      let sql = `SELECT cycle, COUNT(*) FROM transactions WHERE transactionType=? GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
+      let sql = config.postgresEnabled
+        ? `SELECT cycle, COUNT(*) as "COUNT(*)" FROM transactions WHERE transactionType=$1 GROUP BY cycle HAVING cycle BETWEEN $2 AND $3 ORDER BY cycle ASC`
+        : `SELECT cycle, COUNT(*) as "COUNT(*)" FROM transactions WHERE transactionType=? GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
       if (txType === TransactionSearchType.InternalTxReceipt) {
-        sql = `SELECT cycle, COUNT(*) FROM transactions WHERE transactionType!=? AND transactionType!=? AND transactionType!=? GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
-        transactions = await db.all(sql, [
+        sql = config.postgresEnabled
+          ? `SELECT cycle, COUNT(*) as "COUNT(*)" FROM transactions WHERE transactionType!=$1 AND transactionType!=$2 AND transactionType!=$3 GROUP BY cycle HAVING cycle BETWEEN $4 AND $5 ORDER BY cycle ASC`
+          : `SELECT cycle, COUNT(*) as "COUNT(*)" FROM transactions WHERE transactionType!=? AND transactionType!=? AND transactionType!=? GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
+        const values = [
           TransactionType.Receipt,
           TransactionType.StakeReceipt,
           TransactionType.UnstakeReceipt,
           start,
           end,
-        ])
-      } else transactions = await db.all(sql, [ty, start, end])
+        ]
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, values)
+          : await db.all(sql, values)
+      } else {
+        transactions = config.postgresEnabled
+          ? await pgDb.all(sql, [ty, start, end])
+          : await db.all(sql, [ty, start, end])
+      }
     } else {
-      const sql = `SELECT cycle, COUNT(*) FROM transactions GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
-      transactions = await db.all(sql, [start, end])
+      const sql = config.postgresEnabled
+        ? `SELECT cycle, COUNT(*) as "COUNT(*)" FROM transactions GROUP BY cycle HAVING cycle BETWEEN $1 AND $2 ORDER BY cycle ASC`
+        : `SELECT cycle, COUNT(*) as "COUNT(*)" FROM transactions GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
+      transactions = config.postgresEnabled
+        ? await pgDb.all(sql, [start, end])
+        : await db.all(sql, [start, end])
     }
   } catch (e) {
     console.log(e)
@@ -1358,14 +1486,15 @@ export async function queryTransactionsByTimestamp(
   const values: unknown[] = []
   let sqlSuffix = ''
   if (afterTimestamp > 0) {
-    sql += `timestamp>? `
+    sql += ` timestamp${config.postgresEnabled ? `>$${values.length + 1}` : '>?'} `
     sqlSuffix = ` ORDER BY timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     values.push(afterTimestamp)
   }
   if (beforeTimestamp > 0) {
-    if (afterTimestamp > 0) sql += `AND timestamp<? `
-    else {
-      sql += `timestamp<? `
+    if (afterTimestamp > 0) {
+      sql += ` AND timestamp${config.postgresEnabled ? `<$${values.length + 1}` : '<?'} `
+    } else {
+      sql += ` timestamp${config.postgresEnabled ? `<$${values.length + 1}` : '<?'} `
       sqlSuffix = ` ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${skip}`
     }
     values.push(beforeTimestamp)
@@ -1373,11 +1502,11 @@ export async function queryTransactionsByTimestamp(
   try {
     if (address) {
       if (!txType || TransactionSearchType.All) {
-        sql += `AND (txFrom=? OR txTo=? OR nominee=?)`
+        sql += ` AND (txFrom${config.postgresEnabled ? `=$${values.length + 1}` : '=?'} OR txTo${config.postgresEnabled ? `=$${values.length + 2}` : '=?'} OR nominee${config.postgresEnabled ? `=$${values.length + 3}` : '=?'})`
         values.push(address, address, address)
       } else if (txType === TransactionSearchType.AllExceptInternalTx) {
         const ty = TransactionType.InternalTxReceipt
-        sql += `AND (txFrom=? OR txTo=? OR nominee=?) AND transactionType!=?`
+        sql += ` AND (txFrom${config.postgresEnabled ? `=$${values.length + 1}` : '=?'} OR txTo${config.postgresEnabled ? `=$${values.length + 2}` : '=?'} OR nominee${config.postgresEnabled ? `=$${values.length + 3}` : '=?'}) AND transactionType${config.postgresEnabled ? `!=$${values.length + 4}` : '!=?'}`
         values.push(address, address, address, ty)
       } else if (
         txType === TransactionSearchType.Receipt ||
@@ -1396,7 +1525,7 @@ export async function queryTransactionsByTimestamp(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        sql += `AND (txFrom=? OR txTo=? OR nominee=?) AND transactionType=?`
+        sql += ` AND (txFrom${config.postgresEnabled ? `=$${values.length + 1}` : '=?'} OR txTo${config.postgresEnabled ? `=$${values.length + 2}` : '=?'} OR nominee${config.postgresEnabled ? `=$${values.length + 3}` : '=?'}) AND transactionType${config.postgresEnabled ? `=$${values.length + 4}` : '=?'}`
         values.push(address, address, address, ty)
       } else if (
         txType === TransactionSearchType.EVM_Internal ||
@@ -1412,21 +1541,21 @@ export async function queryTransactionsByTimestamp(
               : txType === TransactionSearchType.ERC_721
                 ? TransactionType.ERC_721
                 : TransactionType.ERC_1155
-        sql += `AND (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND tokenType=?`
+        sql += ` AND (tokenFrom${config.postgresEnabled ? `=$${values.length + 1}` + (values.length + 1) : '=?'} OR tokenTo${config.postgresEnabled ? `=$${values.length + 2}` : '=?'} OR tokenOperator${config.postgresEnabled ? `=$${values.length + 3}` : '=?'}) AND tokenType${config.postgresEnabled ? `=$${values.length + 4}` : '=?'}`
         values.push(address, address, address, ty)
       } else if (txType === TransactionSearchType.TokenTransfer) {
         if (filterAddress) {
-          sql += `AND contractAddress=? AND (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND NOT (tokenType=?)`
+          sql += ` AND contractAddress${config.postgresEnabled ? `=$${values.length + 1}` : '=?'} AND (tokenFrom${config.postgresEnabled ? `=$${values.length + 2}` : '=?'} OR tokenTo${config.postgresEnabled ? `=$${values.length + 3}` : '=?'} OR tokenOperator${config.postgresEnabled ? `=$${values.length + 4}` : '=?'}) AND NOT (tokenType${config.postgresEnabled ? `=$${values.length + 5}` : '=?'})`
           values.push(address, filterAddress, filterAddress, filterAddress, TransactionType.EVM_Internal)
         } else {
-          sql += `AND contractAddress=? AND NOT (tokenType=?)`
+          sql += ` AND contractAddress=${config.postgresEnabled ? `=$${values.length + 1}` : '=?'} AND NOT (tokenType${config.postgresEnabled ? `=$${values.length + 2}` : '=?'})`
           values.push(address, TransactionType.EVM_Internal)
         }
       }
     } else if (txType) {
       if (txType === TransactionSearchType.AllExceptInternalTx) {
         const ty = TransactionType.InternalTxReceipt
-        sql += `AND transactionType!=?`
+        sql += ` AND transactionType${config.postgresEnabled ? `!=$${values.length + 1}` : '!=?'}`
         values.push(ty)
       } else if (
         txType === TransactionSearchType.Receipt ||
@@ -1445,7 +1574,7 @@ export async function queryTransactionsByTimestamp(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        sql += `AND transactionType=?`
+        sql += ` AND transactionType${config.postgresEnabled ? `=$${values.length + 1}` : '=?'}`
         values.push(ty)
       } else if (
         txType === TransactionSearchType.EVM_Internal ||
@@ -1461,12 +1590,14 @@ export async function queryTransactionsByTimestamp(
               : txType === TransactionSearchType.ERC_721
                 ? TransactionType.ERC_721
                 : TransactionType.ERC_1155
-        sql += `AND tokenType=?`
+        sql += ` AND tokenType${config.postgresEnabled ? `=$${values.length + 1}` : '=?'}`
         values.push(ty)
       }
     }
     sql += sqlSuffix
-    transactions = await db.all(sql, values)
+    transactions = config.postgresEnabled
+      ? await pgDb.all(sql)
+      : await db.all(sql);
     if (transactions.length > 0) {
       transactions.forEach((transaction: DbTransaction | DbTokenTx) => {
         if ('transactionType' in transaction) deserializeDbTransaction(transaction)
@@ -1516,22 +1647,24 @@ export async function queryTransactionsByBlock(
   blockHash: string
 ): Promise<DbTransaction[]> {
   let transactions: DbTransaction[] = []
-  let sql = `SELECT * FROM transactions WHERE transactionType IN (?,?,?) `
+  let sql = `SELECT * FROM transactions WHERE transactionType IN ${config.postgresEnabled ? '($1, $2, $3)' : '(?,?,?)'}`
   const values: unknown[] = [
     TransactionType.Receipt,
     TransactionType.StakeReceipt,
     TransactionType.UnstakeReceipt,
   ]
   if (blockNumber >= 0) {
-    sql += `AND blockNumber=? `
+    sql += `AND blockNumber${config.postgresEnabled ? `=$${values.length + 1}` : '=?'} `
     values.push(blockNumber)
   } else if (blockHash) {
-    sql += `AND blockHash=? `
+    sql += `AND blockHash${config.postgresEnabled ? `=$${values.length + 1}` : '=?'} `
     values.push(blockHash)
   }
   sql += `ORDER BY timestamp ASC;`
   try {
-    transactions = await db.all(sql, values)
+    transactions = config.postgresEnabled
+      ? await pgDb.all(sql, values)
+      : await db.all(sql, values)
     if (transactions.length > 0) {
       transactions.forEach((transaction: DbTransaction) => deserializeDbTransaction(transaction))
     }
@@ -1544,8 +1677,10 @@ export async function queryTransactionsByBlock(
 
 export async function queryTokenTxByTxId(txId: string): Promise<DbTokenTx[] | []> {
   try {
-    const sql = `SELECT * FROM tokenTxs WHERE txId=?`
-    const tokenTxs: DbTokenTx[] = await db.all(sql, [txId])
+    const sql = `SELECT * FROM tokenTxs WHERE txId${config.postgresEnabled ? '=$1' : '=?'}`
+    const tokenTxs: DbTokenTx[] = config.postgresEnabled
+      ? await pgDb.all(sql, [txId])
+      : await db.all(sql, [txId])
     if (config.verbose) console.log('tokenTxs txId', tokenTxs)
     return tokenTxs
   } catch (e) {

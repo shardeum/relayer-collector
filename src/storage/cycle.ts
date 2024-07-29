@@ -141,7 +141,9 @@ export async function insertOrUpdateCycle(cycle: Cycle): Promise<void> {
 export async function queryLatestCycleRecords(count: number): Promise<Cycle[]> {
   try {
     const sql = `SELECT * FROM cycles ORDER BY counter DESC LIMIT ${count}`
-    const cycleRecords: DbCycle[] = await db.all(sql)
+    const cycleRecords: DbCycle[] = config.postgresEnabled
+      ? await pgDb.all(sql)
+      : await db.all(sql)
     if (cycleRecords.length > 0) {
       cycleRecords.forEach((cycleRecord: DbCycle) => {
         if (cycleRecord.cycleRecord) cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
@@ -158,8 +160,12 @@ export async function queryLatestCycleRecords(count: number): Promise<Cycle[]> {
 
 export async function queryCycleRecordsBetween(start: number, end: number): Promise<Cycle[]> {
   try {
-    const sql = `SELECT * FROM cycles WHERE counter BETWEEN ? AND ? ORDER BY counter DESC`
-    const cycles: DbCycle[] = await db.all(sql, [start, end])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM cycles WHERE counter BETWEEN $1 AND $2 ORDER BY counter DESC`
+      : `SELECT * FROM cycles WHERE counter BETWEEN ? AND ? ORDER BY counter DESC`
+    const cycles: DbCycle[] = config.postgresEnabled
+      ? await pgDb.all(sql, [start, end])
+      : await db.all(sql, [start, end])
     if (cycles.length > 0) {
       cycles.forEach((cycleRecord: DbCycle) => {
         if (cycleRecord.cycleRecord) cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)

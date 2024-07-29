@@ -414,7 +414,9 @@ export async function queryReceiptByReceiptId(receiptId: string): Promise<Receip
 export async function queryLatestReceipts(count: number): Promise<Receipt[]> {
   try {
     const sql = `SELECT * FROM receipts ORDER BY cycle DESC, timestamp DESC LIMIT ${count}`
-    const receipts: DbReceipt[] = await db.all(sql)
+    const receipts: DbReceipt[] = config.postgresEnabled
+      ? await pgDb.all(sql)
+      : await db.all(sql)
 
     receipts.forEach((receipt: DbReceipt) => deserializeDbReceipt(receipt))
 
@@ -431,7 +433,9 @@ export async function queryReceipts(skip = 0, limit = 10000): Promise<Receipt[]>
   let receipts: DbReceipt[] = []
   try {
     const sql = `SELECT * FROM receipts ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    receipts = await db.all(sql)
+    const receipts: DbReceipt[] = config.postgresEnabled
+      ? await pgDb.all(sql)
+      : await db.all(sql)
     receipts.forEach((receipt: DbReceipt) => deserializeDbReceipt(receipt))
   } catch (e) {
     console.log(e)
@@ -462,8 +466,12 @@ export async function queryReceiptCountByCycles(
 ): Promise<{ receipts: number; cycle: number }[]> {
   let receipts: { cycle: number; 'COUNT(*)': number }[] = []
   try {
-    const sql = `SELECT cycle, COUNT(*) FROM receipts GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
-    receipts = await db.all(sql, [start, end])
+    const sql = config.postgresEnabled
+      ? `SELECT cycle, COUNT(*) as "COUNT(*)" FROM receipts GROUP BY cycle HAVING cycle BETWEEN $1 AND $2 ORDER BY cycle ASC`
+      : `SELECT cycle, COUNT(*) as "COUNT(*)" FROM receipts GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
+    const receipts: DbReceipt[] = config.postgresEnabled
+      ? await pgDb.all(sql, [start, end])
+      : await db.all(sql, [start, end])
   } catch (e) {
     console.log(e)
   }
@@ -485,8 +493,12 @@ export async function queryReceiptsBetweenCycles(
 ): Promise<Receipt[]> {
   let receipts: DbReceipt[] = []
   try {
-    const sql = `SELECT * FROM receipts WHERE cycle BETWEEN ? and ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    receipts = await db.all(sql, [start, end])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM receipts WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+      : `SELECT * FROM receipts WHERE cycle BETWEEN ? AND ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+    const receipts: DbReceipt[] = config.postgresEnabled
+      ? await pgDb.all(sql, [start, end])
+      : await db.all(sql, [start, end])
     receipts.forEach((receipt: DbReceipt) => deserializeDbReceipt(receipt))
   } catch (e) {
     console.log(e)

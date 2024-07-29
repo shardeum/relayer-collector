@@ -4,6 +4,7 @@ dotenv.config()
 import * as Crypto from '../src/utils/crypto'
 import * as Storage from '../src/storage'
 import * as db from '../src/storage/sqlite3storage'
+import * as pgDb from '../src/storage/pgStorage'
 import * as CycleDB from '../src/storage/cycle'
 import * as BlockDB from '../src/storage/block'
 import { config, overrideDefaultConfig } from '../src/config'
@@ -76,7 +77,7 @@ async function checkCycleData(startCycleNumber = 0, latestCycleNumber: number): 
     const promises = cycleBatches.map(async (cycleNumberBatch: number[]) => {
       const sql =
         'SELECT counter FROM cycles WHERE counter IN (' + cycleNumberBatch + ') ORDER BY counter ASC'
-      return db.all(sql)
+      return config.postgresEnabled ? pgDb.all(sql) : db.all(sql)
     })
 
     const results = await Promise.allSettled(promises)
@@ -114,7 +115,9 @@ async function checkBlockData(startBlockNumber = 0, latestBlockNumber: number): 
     // Query block in batches in parallel using Promise.allSettled
     const promises = blockBatches.map(async (blockNumberBatch: number[]) => {
       const sql = 'SELECT number FROM blocks WHERE number IN (' + blockNumberBatch + ') ORDER BY number ASC'
-      return db.all(sql)
+      return config.postgresEnabled
+        ? pgDb.all(sql)
+        : db.all(sql)
     })
 
     const results = await Promise.allSettled(promises)

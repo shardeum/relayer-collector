@@ -234,10 +234,16 @@ export async function queryAccounts(
     if (type || type === AccountSearchType.All) {
       if (type === AccountSearchType.All) {
         const sql = `SELECT * FROM accounts ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-        accounts = await db.all(sql, [])
+        accounts = config.postgresEnabled
+          ? await pgDb.all(sql)
+          : await db.all(sql)
       } else if (type === AccountSearchType.CA) {
-        const sql = `SELECT * FROM accounts WHERE accountType=? AND contractType IS NOT NULL ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-        accounts = await db.all(sql, [AccountType.Account])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM accounts WHERE accountType=$1 AND contractType IS NOT NULL ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM accounts WHERE accountType=? AND contractType IS NOT NULL ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        accounts = config.postgresEnabled
+          ? await pgDb.all(sql, [AccountType.Account])
+          : await db.all(sql, [AccountType.Account])
       } else if (
         type === AccountSearchType.GENERIC ||
         type === AccountSearchType.ERC_20 ||
@@ -252,12 +258,20 @@ export async function queryAccounts(
               : type === AccountSearchType.ERC_721
                 ? ContractType.ERC_721
                 : ContractType.ERC_1155
-        const sql = `SELECT * FROM accounts WHERE accountType=? AND contractType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-        accounts = await db.all(sql, [AccountType.Account, type])
+        const sql = config.postgresEnabled
+          ? `SELECT * FROM accounts WHERE accountType=$1 AND contractType=$2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM accounts WHERE accountType=? AND contractType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        accounts = config.postgresEnabled
+          ? await pgDb.all(sql, [AccountType.Account, type])
+          : await db.all(sql, [AccountType.Account, type])
       }
     } else {
-      const sql = `SELECT * FROM accounts WHERE accountType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-      accounts = await db.all(sql, [AccountType.Account])
+      const sql = config.postgresEnabled
+        ? `SELECT * FROM accounts WHERE accountType=$1 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        : `SELECT * FROM accounts WHERE accountType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+      accounts = config.postgresEnabled
+        ? await pgDb.all(sql, [AccountType.Account])
+        : await db.all(sql, [AccountType.Account])
     }
     accounts.forEach((account: DbAccount) => {
       if (account.account) account.account = StringUtils.safeJsonParse(account.account)
@@ -342,8 +356,13 @@ export async function queryAccountsBetweenCycles(
 ): Promise<Account[]> {
   let accounts: DbAccount[] = []
   try {
-    const sql = `SELECT * FROM accounts WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-    accounts = await db.all(sql, [startCycleNumber, endCycleNumber])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM accounts WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+      : `SELECT * FROM accounts WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+    accounts = config.postgresEnabled
+      ? await pgDb.all(sql, [startCycleNumber, endCycleNumber])
+      : await db.all(sql, [startCycleNumber, endCycleNumber])
+
     accounts.forEach((account: DbAccount) => {
       if (account.account)
         (account as Account).account = StringUtils.safeJsonParse(account.account) as WrappedEVMAccount
@@ -361,8 +380,12 @@ export async function queryAccountsBetweenCycles(
 
 export async function queryTokensByAddress(address: string, detail = false): Promise<object[]> {
   try {
-    const sql = `SELECT * FROM tokens WHERE ethAddress=?`
-    const tokens = (await db.all(sql, [address])) as Token[]
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM tokens WHERE ethAddress=$1`
+      : `SELECT * FROM tokens WHERE ethAddress=?`
+    const tokens = config.postgresEnabled
+      ? (await pgDb.all(sql, [address])) as Token[]
+      : (await db.all(sql, [address])) as Token[]
     const filterTokens: object[] = []
     if (detail) {
       for (const { contractAddress, tokenValue } of tokens) {
@@ -423,8 +446,12 @@ export async function queryTokenHolderCount(contractAddress: string): Promise<nu
 export async function queryTokenHolders(skip = 0, limit = 10, contractAddress: string): Promise<Token[]> {
   let tokens: Token[] = []
   try {
-    const sql = `SELECT * FROM tokens WHERE contractAddress=? ORDER BY tokenValue DESC LIMIT ${limit} OFFSET ${skip}`
-    tokens = await db.all(sql, [contractAddress])
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM tokens WHERE contractAddress=$1 ORDER BY tokenValue DESC LIMIT ${limit} OFFSET ${skip}`
+      : `SELECT * FROM tokens WHERE contractAddress=? ORDER BY tokenValue DESC LIMIT ${limit} OFFSET ${skip}`
+    tokens = config.postgresEnabled
+      ? await pgDb.all(sql, [contractAddress])
+      : await db.all(sql, [contractAddress])
   } catch (e) {
     console.log(e)
   }
