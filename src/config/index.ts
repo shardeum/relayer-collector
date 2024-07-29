@@ -37,6 +37,7 @@ export interface Config {
     publicKey: string
   }
   postgresEnabled: boolean
+  sqliteEnabled: boolean
   pgDefaultDBConnectionString: string
   rpcUrl: string
   apiUrl: string
@@ -99,6 +100,7 @@ let config: Config = {
     publicKey: '',
   },
   postgresEnabled: process.env.PG_ENABLED === 'true',
+  sqliteEnabled: process.env.SQLITE_ENABLED === 'true',
   pgDefaultDBConnectionString: process.env.PG_DEFAULT_DB_CONNECTION_STRING || 'postgresql://localhost/shardeum_default&user=root&password=password',
   rpcUrl: 'http://127.0.0.1:8080',
   apiUrl: '',
