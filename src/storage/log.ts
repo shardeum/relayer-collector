@@ -42,7 +42,7 @@ export async function insertLog(log: Log): Promise<void> {
       const sql = `
         INSERT INTO logs (${fields})
         VALUES (${placeholders})
-        ON CONFLICT
+        ON CONFLICT(_id)
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
       await pgDb.run(sql, values)
@@ -79,7 +79,7 @@ export async function bulkInsertLogs(logs: Log[]): Promise<void> {
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      sql += ` ON CONFLICT(_id) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
       await pgDb.run(sql, values)
     }

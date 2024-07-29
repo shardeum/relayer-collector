@@ -24,7 +24,7 @@ export async function insertBlock(block: DbBlock): Promise<void> {
       const sql = `
         INSERT INTO blocks (${fields})
         VALUES (${placeholders})
-        ON CONFLICT
+        ON CONFLICT("number")
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
 
@@ -58,7 +58,7 @@ export async function bulkInsertBlocks(blocks: DbBlock[]): Promise<void> {
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      sql += ` ON CONFLICT("number") DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
       await pgDb.run(sql, values)
     } else {

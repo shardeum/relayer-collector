@@ -44,7 +44,7 @@ export async function insertTransaction(transaction: Transaction): Promise<void>
     if (config.postgresEnabled) {
       let sql = `INSERT INTO transactions (${fields}) VALUES `
       sql += `(${Object.keys(transaction).map((_, i) => `$${i + 1}`).join(', ')})`
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      sql += ` ON CONFLICT(txId, txHash) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values, 'default')
     } else {
       const placeholders = Object.keys(transaction).fill('?').join(', ')
@@ -72,7 +72,7 @@ export async function bulkInsertTransactions(transactions: Transaction[]): Promi
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      sql += ` ON CONFLICT(txId, txHash) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values, 'default')
     } else {
       const placeholders = Object.keys(transactions[0]).fill('?').join(', ')
@@ -124,7 +124,7 @@ export async function insertTokenTransaction(tokenTx: TokenTx): Promise<void> {
     if (config.postgresEnabled) {
       let sql = `INSERT INTO tokenTxs (${fields}) VALUES `
       sql += `(${Object.keys(tokenTx).map((_, i) => `$${i + 1}`).join(', ')})`
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      sql += ` ON CONFLICT(txId, txHash) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values, 'default')
     } else {
       const placeholders = Object.keys(tokenTx).fill('?').join(', ')
@@ -152,7 +152,7 @@ export async function bulkInsertTokenTransactions(tokenTxs: TokenTx[]): Promise<
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      sql += ` ON CONFLICT(txId, txHash) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values, 'default')
     } else {
       const placeholders = Object.keys(tokenTxs[0]).fill('?').join(', ')

@@ -16,7 +16,7 @@ export async function insertAccountEntry(account: Account): Promise<void> {
     if (config.postgresEnabled) {
       const placeholders = Object.keys(accountEntry).map((key, ind) => `\$${ind + 1}`).join(', ')
       const replacement = Object.keys(accountEntry).map((key) => `${key} = EXCLUDED.${key}`).join(', ')
-      const sql = 'INSERT INTO accountsEntry (' + fields + ') VALUES (' + placeholders + ') ON CONFLICT DO UPDATE SET ' + replacement
+      const sql = 'INSERT INTO accountsEntry (' + fields + ') VALUES (' + placeholders + ') ON CONFLICT(accountId) DO UPDATE SET ' + replacement
       await pgDb.run(sql, values, 'shardeumIndexer')
     } else {
       const placeholders = Object.keys(accountEntry).fill('?').join(', ')
@@ -64,7 +64,7 @@ export async function bulkInsertAccountEntries(accounts: Account[]): Promise<voi
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql = `${sql} ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      sql = `${sql} ON CONFLICT(accountId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values, 'shardeumIndexer')
     }
     else {

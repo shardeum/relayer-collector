@@ -27,7 +27,7 @@ export async function insertAccountHistoryState(accountHistoryState: AccountHist
       const sql = `
         INSERT INTO accountHistoryState (${fields})
         VALUES (${placeholders})
-        ON CONFLICT
+        ON CONFLICT(accountId, timestamp)
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
       await pgDb.run(sql, values)
@@ -69,7 +69,7 @@ export async function bulkInsertAccountHistoryStates(
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      sql += ` ON CONFLICT(accountId, timestamp) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
       await pgDb.run(sql, values)
     } else {

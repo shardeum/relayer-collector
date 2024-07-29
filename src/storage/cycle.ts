@@ -29,7 +29,7 @@ export async function insertCycle(cycle: Cycle): Promise<void> {
       const sql = `
         INSERT INTO cycles (${fields})
         VALUES (${placeholders})
-        ON CONFLICT
+        ON CONFLICT(cycleMarker)
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
 
@@ -66,7 +66,7 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
         return `(${currentPlaceholders})`
       }).join(", ")
 
-      sql += ` ON CONFLICT DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      sql += ` ON CONFLICT(cycleMarker) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
       await pgDb.run(sql, values)
     } else {
