@@ -243,7 +243,7 @@ export async function queryOriginalTxsData(
 ): Promise<OriginalTxDataInterface[]> {
   let originalTxsData: DbOriginalTxData[] = []
   try {
-    let sql = `SELECT * FROM originalTxsData`
+    let sql = `SELECT *${config.postgresEnabled ? ', originalTxData::TEXT' : ''} FROM originalTxsData`
     const sqlSuffix = ` ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
     const values: unknown[] = []
     if (startCycle && endCycle) {
@@ -296,7 +296,7 @@ export async function queryOriginalTxsData(
     for (const originalTxData of originalTxsData) {
       if (txType) {
         const sql = config.postgresEnabled
-          ? `SELECT * FROM originalTxsData WHERE txId=$1`
+          ? `SELECT *, originalTxData::TEXT FROM originalTxsData WHERE txId=$1`
           : `SELECT * FROM originalTxsData WHERE txId=?`
         const originalTxDataById: DbOriginalTxData = config.postgresEnabled
           ? await pgDb.get(sql, [originalTxData.txId])
@@ -318,7 +318,7 @@ export async function queryOriginalTxsData(
 export async function queryOriginalTxDataByTxId(txId: string): Promise<OriginalTxDataInterface | null> {
   try {
     const sql = config.postgresEnabled
-      ? `SELECT * FROM originalTxsData WHERE txId=$1`
+      ? `SELECT *, originalTxData::TEXT FROM originalTxsData WHERE txId=$1`
       : `SELECT * FROM originalTxsData WHERE txId=?`
 
     const originalTxData: DbOriginalTxData = config.postgresEnabled
@@ -348,7 +348,7 @@ export async function queryOriginalTxDataByTxHash(txHash: string): Promise<Origi
       : await db.get(sql, [txHash])
     if (originalTxData) {
       const sql = config.postgresEnabled
-        ? `SELECT * FROM originalTxsData WHERE txId=$1`
+        ? `SELECT *, originalTxData::TEXT FROM originalTxsData WHERE txId=$1`
         : `SELECT * FROM originalTxsData WHERE txId=?`
 
       const originalTxDataById: DbOriginalTxData = config.postgresEnabled

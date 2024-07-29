@@ -140,7 +140,7 @@ export async function insertOrUpdateCycle(cycle: Cycle): Promise<void> {
 
 export async function queryLatestCycleRecords(count: number): Promise<Cycle[]> {
   try {
-    const sql = `SELECT * FROM cycles ORDER BY counter DESC LIMIT ${count}`
+    const sql = `SELECT *${config.postgresEnabled ? ', cycleRecord::TEXT' : ''} FROM cycles ORDER BY counter DESC LIMIT ${count}`
     const cycleRecords: DbCycle[] = config.postgresEnabled
       ? await pgDb.all(sql)
       : await db.all(sql)
@@ -161,7 +161,7 @@ export async function queryLatestCycleRecords(count: number): Promise<Cycle[]> {
 export async function queryCycleRecordsBetween(start: number, end: number): Promise<Cycle[]> {
   try {
     const sql = config.postgresEnabled
-      ? `SELECT * FROM cycles WHERE counter BETWEEN $1 AND $2 ORDER BY counter DESC`
+      ? `SELECT *, cycleRecord::TEXT FROM cycles WHERE counter BETWEEN $1 AND $2 ORDER BY counter DESC`
       : `SELECT * FROM cycles WHERE counter BETWEEN ? AND ? ORDER BY counter DESC`
     const cycles: DbCycle[] = config.postgresEnabled
       ? await pgDb.all(sql, [start, end])
@@ -182,7 +182,7 @@ export async function queryCycleRecordsBetween(start: number, end: number): Prom
 export async function queryCycleByMarker(marker: string): Promise<Cycle | null> {
   try {
     const sql = config.postgresEnabled
-      ? `SELECT * FROM cycles WHERE cycleMarker=$1 LIMIT 1`
+      ? `SELECT *, cycleRecord::TEXT FROM cycles WHERE cycleMarker=$1 LIMIT 1`
       : `SELECT * FROM cycles WHERE cycleMarker=? LIMIT 1`
 
     const cycleRecord: DbCycle = config.postgresEnabled
@@ -203,7 +203,7 @@ export async function queryCycleByMarker(marker: string): Promise<Cycle | null> 
 export async function queryCycleByCounter(counter: number): Promise<Cycle | null> {
   try {
     const sql = config.postgresEnabled
-      ? `SELECT * FROM cycles WHERE counter=$1 LIMIT 1`
+      ? `SELECT *, cycleRecord::TEXT FROM cycles WHERE counter=$1 LIMIT 1`
       : `SELECT * FROM cycles WHERE counter=? LIMIT 1`
 
     const cycleRecord: DbCycle = config.postgresEnabled

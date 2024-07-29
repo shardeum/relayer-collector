@@ -124,7 +124,7 @@ export async function queryBlockByNumber(blockNumber: number): Promise<DbBlock |
   /*prettier-ignore*/ if (config.verbose) console.log('block: Querying block by number', blockNumber)
   try {
     const sql = config.postgresEnabled
-      ? 'SELECT * FROM blocks WHERE number = $1'
+      ? 'SELECT *, readableBlock::TEXT FROM blocks WHERE number = $1'
       : 'SELECT * FROM blocks WHERE number = ?'
     const values = [blockNumber]
     const block: DbBlock = config.postgresEnabled
@@ -144,7 +144,7 @@ export async function queryBlockByNumber(blockNumber: number): Promise<DbBlock |
 export async function queryBlockByTag(tag: 'earliest' | 'latest'): Promise<DbBlock | null> {
   try {
     if (tag === 'earliest') {
-      const sql = 'SELECT * FROM blocks WHERE number = 0'
+      const sql = `SELECT *${config.postgresEnabled ? ', readableBlock::TEXT' : ''} FROM blocks WHERE number = 0`
       const block: DbBlock = config.postgresEnabled
         ? await pgDb.get(sql)
         : await db.get(sql)
@@ -162,7 +162,7 @@ export async function queryBlockByHash(blockHash: string): Promise<DbBlock | nul
   /*prettier-ignore*/ if (config.verbose) console.log('block: Querying block by hash', blockHash)
   try {
     const sql = config.postgresEnabled
-      ? 'SELECT * FROM blocks WHERE hash = $1'
+      ? 'SELECT *, readableBlock::TEXT FROM blocks WHERE hash = $1'
       : 'SELECT * FROM blocks WHERE hash = ?'
     const values = [blockHash]
     const block: DbBlock = config.postgresEnabled
@@ -263,7 +263,7 @@ export async function queryBlockCount(): Promise<number> {
 
 export async function queryLatestBlocks(count: number): Promise<DbBlock[]> {
   try {
-    const sql = `SELECT * FROM blocks ORDER BY number DESC LIMIT ${count}`
+    const sql = `SELECT *${config.postgresEnabled ? ', readableBlock::TEXT' : ''} FROM blocks ORDER BY number DESC LIMIT ${count}`
     const blocks: DbBlock[] = config.postgresEnabled
       ? await pgDb.all(sql)
       : await db.all(sql)

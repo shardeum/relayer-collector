@@ -13,7 +13,7 @@ async function getLatestBlockFromDB(): Promise<DbBlock> {
   const before = Date.now()
 
   const delayInMillis = blockQueryDelayInMillis()
-  const sql = `SELECT * FROM (SELECT * FROM blocks ORDER BY number DESC LIMIT 100) AS subquery WHERE timestamp <= ${Date.now() - delayInMillis}`
+  const sql = `SELECT * FROM (SELECT *${config.postgresEnabled ? ', readableBlock::TEXT' : ''} FROM blocks ORDER BY number DESC LIMIT 100) AS subquery WHERE timestamp <= ${Date.now() - delayInMillis}`
 
   //Shouldn't the highest block number always be the latest block?
   //This query seems much faster for the same thing

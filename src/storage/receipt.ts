@@ -396,7 +396,7 @@ export async function processReceiptData(receipts: Receipt[], saveOnlyNewData = 
 export async function queryReceiptByReceiptId(receiptId: string): Promise<Receipt | null> {
   try {
     const sql = config.postgresEnabled
-      ? `SELECT * FROM receipts WHERE receiptId=$1`
+      ? `SELECT *, tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT FROM receipts WHERE receiptId=$1`
       : `SELECT * FROM receipts WHERE receiptId=?`
     const receipt: DbReceipt = config.postgresEnabled
       ? await pgDb.get(sql, [receiptId])
@@ -413,7 +413,7 @@ export async function queryReceiptByReceiptId(receiptId: string): Promise<Receip
 
 export async function queryLatestReceipts(count: number): Promise<Receipt[]> {
   try {
-    const sql = `SELECT * FROM receipts ORDER BY cycle DESC, timestamp DESC LIMIT ${count}`
+    const sql = `SELECT *${config.postgresEnabled ? ', tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT' : ''} FROM receipts ORDER BY cycle DESC, timestamp DESC LIMIT ${count}`
     const receipts: DbReceipt[] = config.postgresEnabled
       ? await pgDb.all(sql)
       : await db.all(sql)
@@ -432,7 +432,7 @@ export async function queryLatestReceipts(count: number): Promise<Receipt[]> {
 export async function queryReceipts(skip = 0, limit = 10000): Promise<Receipt[]> {
   let receipts: DbReceipt[] = []
   try {
-    const sql = `SELECT * FROM receipts ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+    const sql = `SELECT *${config.postgresEnabled ? ', tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT' : ''} FROM receipts ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     const receipts: DbReceipt[] = config.postgresEnabled
       ? await pgDb.all(sql)
       : await db.all(sql)
@@ -494,7 +494,7 @@ export async function queryReceiptsBetweenCycles(
   let receipts: DbReceipt[] = []
   try {
     const sql = config.postgresEnabled
-      ? `SELECT * FROM receipts WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+      ? `SELECT *, tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT FROM receipts WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
       : `SELECT * FROM receipts WHERE cycle BETWEEN ? AND ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     const receipts: DbReceipt[] = config.postgresEnabled
       ? await pgDb.all(sql, [start, end])

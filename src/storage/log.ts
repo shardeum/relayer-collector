@@ -112,7 +112,7 @@ function buildLogQueryString(
       sql = 'SELECT COUNT(DISTINCT(txHash)) as "COUNT(DISTINCT(txHash))" FROM logs '
     }
   } else {
-    sql = 'SELECT * FROM logs '
+    sql = `SELECT *${config.postgresEnabled ? ', log::TEXT' : ''} FROM logs `
   }
   const fromBlock = request.fromBlock
   const toBlock = request.toBlock
@@ -260,7 +260,7 @@ export async function queryLogsBetweenCycles(
   let logs: DbLog[] = []
   try {
     const sql = config.postgresEnabled
-      ? `SELECT * FROM logs WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+      ? `SELECT *, log::TEXT FROM logs WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
       : `SELECT * FROM logs WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
     logs = config.postgresEnabled
       ? await pgDb.all(sql, [startCycleNumber, endCycleNumber])
@@ -295,7 +295,7 @@ export async function queryLogsByFilter(logFilter: LogFilter, limit = 5000): Pro
   function createSqlFromEvmLogFilter(filter: LogFilter): string {
     const { fromBlock, toBlock, address, topics, blockHash } = filter
 
-    let sql = `SELECT log FROM logs WHERE 1 = 1`
+    let sql = `SELECT log::TEXT FROM logs WHERE 1 = 1`
 
     if (isArray(address) && address.length > 0) {
       sql += ` AND contractAddress IN (${address.map((_, index) => config.postgresEnabled ? `$${queryParams.length + index + 1}` : `?`).join(',')})`
