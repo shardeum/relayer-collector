@@ -17,12 +17,38 @@ import { isShardeumIndexerEnabled } from '.'
 import { bulkInsertAccountEntries, insertAccountEntry, updateAccountEntry } from './accountEntry'
 import { Utils as StringUtils } from '@shardus/types'
 
-type DbAccount = Account & {
+export { type Account } from '../types'
+
+export type DbAccount = Account & {
   account: string
   contractInfo: string
+  balance: bigint
+  nonce: bigint
 }
 
 export const EOA_CodeHash = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
+
+
+const transformAccount = (account: Account) => {
+
+  if (!account.account.account) {
+    return {
+      ...account,
+      balance: BigInt(0),
+      nonce: BigInt(0)
+    }
+  }
+
+  const newAccount = { ...account, balance: BigInt(0), nonce: BigInt(0) } as Account & { balance: bigint; nonce: bigint }
+  const balance = BigInt(`0x${account.account.account.balance}`)
+  const nonce = BigInt(`0x${account.account.account.nonce}`)
+
+  newAccount.balance = account.account.account.balance
+  newAccount.nonce = account.account.account.nonce
+
+  return newAccount
+}
+
 
 export async function insertAccount(account: Account): Promise<void> {
   try {
@@ -30,8 +56,12 @@ export async function insertAccount(account: Account): Promise<void> {
     const values = extractValues(account)
 
     if (config.postgresEnabled) {
-      const placeholders = Object.keys(account).map((_key, ind) => `\$${ind + 1}`).join(', ')
-      const replacement = Object.keys(account).map((key) => `${key} = EXCLUDED.${key}`).join(', ')
+      const tAccount = transformAccount(account)
+      const fields = Object.keys(tAccount).join(', ')
+      const values = extractValues(tAccount)
+
+      const placeholders = Object.keys(tAccount).map((_key, ind) => `\$${ind + 1}`).join(', ')
+      const replacement = Object.keys(tAccount).map((key) => `${key} = EXCLUDED.${key}`).join(', ')
       const sql = 'INSERT INTO accounts (' + fields + ') VALUES (' + placeholders + ') ON CONFLICT(accountId) DO UPDATE SET ' + replacement
       await pgDb.run(sql, values)
     } else {
@@ -53,16 +83,20 @@ export async function bulkInsertAccounts(accounts: Account[]): Promise<void> {
     const values = extractValuesFromArray(accounts)
 
     if (config.postgresEnabled) {
+      const tAccounts = accounts.map((account) => transformAccount(account))
+      const fields = Object.keys(tAccounts[0]).join(', ')
+      const values = extractValuesFromArray(tAccounts)
+
       let sql = `INSERT INTO accounts (${fields}) VALUES `
-      sql += accounts.map((_, i) => {
-        const currentPlaceholders = Object.keys(accounts[0])
-          .map((_, j) => `$${i * Object.keys(accounts[0]).length + j + 1}`)
+      sql += tAccounts.map((_, i) => {
+        const currentPlaceholders = Object.keys(tAccounts[0])
+          .map((_, j) => `$${i * Object.keys(tAccounts[0]).length + j + 1}`)
           .join(', ')
         return `(${currentPlaceholders})`
       }).join(", ")
 
       sql += ` ON CONFLICT(accountId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
-      await pgDb.run(sql, values, 'default')
+      await pgDb.run(sql, values)
     } else {
       const placeholders = Object.keys(accounts[0]).fill('?').join(', ')
       let sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
