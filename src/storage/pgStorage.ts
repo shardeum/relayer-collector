@@ -7,7 +7,7 @@ types.setTypeParser(20, Number);
 const pgDefaultDBClient = new Client({ connectionString: config.pgDefaultDBConnectionString })
 const pgShardeumIndexerDBClient = new Client({ connectionString: config.pgShardeumIndexerDBConnectionString })
 
-const COLUMN_EXCHANGER = ["accountId", "accountType", "afterStateHash", "appReceiptData", "appliedReceipt", "beforeStateAccounts", "beforeStateHash", "blockHash", "blockNumber", "contractInfo", "contractType", "cycleMarker", "cycleRecord", "ethAddress", "executionShardKey", "globalModification", "isGlobal", "numberHex", "originalTxData", "readableBlock", "receiptId", "tokenEvent", "tokenFrom", "tokenOperator", "tokenTo", "tokenType", "tokenValue", "transactionFee", "transactionType", "txFrom", "txHash", "txId", "txTo", "wrappedEVMAccount"]
+const COLUMN_EXCHANGER = ['accountId', 'accountType', 'afterStateHash', 'amountSpent', 'amountSpent_decimal', 'appReceiptData', 'appliedReceipt', 'beforeStateAccounts', 'beforeStateHash', 'blockHash', 'blockNumber', 'contractAddress', 'contractInfo', 'contractType', 'cycle', 'cycleMarker', 'cycleRecord', 'data', 'ethAddress', 'executionShardKey', 'from', 'globalModification', 'hash', 'internalTx', 'isGlobal', 'isInternalTx', 'nominee', 'nonce', 'numberHex', 'originalTxData', 'penalty', 'readableBlock', 'receiptId', 'reward', 'stake', 'status', 'timestamp', 'to', 'tokenEvent', 'tokenFrom', 'tokenOperator', 'tokenTo', 'tokenType', 'tokenValue', 'totalStakeAmount', 'totalUnstakeAmount', 'transactionFee', 'transactionHash', 'transactionType', 'txFrom', 'txHash', 'txId', 'txTo', 'value', 'value_decimal', 'wrappedEVMAccount']
 
 export type DbName = 'default' | 'shardeumIndexer'
 

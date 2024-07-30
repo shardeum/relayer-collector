@@ -1,6 +1,7 @@
 import * as db from './sqlite3storage'
 import * as pgDb from './pgStorage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import * as analyticsUtil from '../utils/analytics'
 import { config } from '../config/index'
 import { Utils as StringUtils } from '@shardus/types'
 import {
@@ -46,6 +47,7 @@ export async function insertTransaction(transaction: Transaction): Promise<void>
       sql += `(${Object.keys(transaction).map((_, i) => `$${i + 1}`).join(', ')})`
       sql += ` ON CONFLICT(txId, txHash) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values, 'default')
+      await analyticsUtil.upsertTransaction(transaction)
     } else {
       const placeholders = Object.keys(transaction).fill('?').join(', ')
       const sql = 'INSERT OR REPLACE INTO transactions (' + fields + ') VALUES (' + placeholders + ')'
@@ -74,6 +76,7 @@ export async function bulkInsertTransactions(transactions: Transaction[]): Promi
 
       sql += ` ON CONFLICT(txId, txHash) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values, 'default')
+      await analyticsUtil.bulkUpsertTransactions(transactions)
     } else {
       const placeholders = Object.keys(transactions[0]).fill('?').join(', ')
       let sql = 'INSERT OR REPLACE INTO transactions (' + fields + ') VALUES (' + placeholders + ')'
@@ -100,6 +103,9 @@ export async function updateTransaction(_txId: string, transaction: Partial<Tran
         transaction.txId
       ]
       await pgDb.run(sql, values, 'default')
+      const getUpdatedTxnSql = 'SELECT * FROM transactions WHERE txId = $1, txHash = $2'
+      const updatedTransaction = (await pgDb.get(getUpdatedTxnSql, [transaction.txId, transaction.txHash])) as Transaction
+      await analyticsUtil.upsertTransaction(updatedTransaction)
     } else {
       const sql = `UPDATE transactions SET cycle = $cycle, wrappedEVMAccount = $wrappedEVMAccount, txHash = $txHash WHERE txId = $txId`
       await db.run(sql, {
