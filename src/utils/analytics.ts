@@ -29,19 +29,11 @@ export const calculateFullValue = (value: string | BN): string => {
   }
 }
 
-export enum AnalyticsTableNames {
-  ACCOUNTS = 'analyticsAccounts',
-  CYCLES = 'analyticsCycles',
-  TRANSACTIONS = 'analyticsTransactions'
-}
-
-
 
 const idStates = ['startedSyncing', 'finishedSyncing', 'activated', 'removed', 'apoptosized']
 const pubKeyStates = ['standbyAdd', 'standbyRefresh', 'standbyRemove', 'joinedConsensors']
 
-
-type CycleRecordRow = {
+export type CycleRecordRow = {
   version: string
   eventName: string
   cycleMarker: string
@@ -53,7 +45,7 @@ type CycleRecordRow = {
   externalPort?: number
 }
 
-const transformCycle = (cycle: Cycle) => {
+export const transformCycle = (cycle: Cycle) => {
   const allAnalyticsCycleRecords: CycleRecordRow[] = []
 
   if (typeof cycle.cycleRecord === "string") {
@@ -81,7 +73,6 @@ const transformCycle = (cycle: Cycle) => {
           })
         })
       } else if (key == 'standbyAdd') {
-        console.log(value)
         value.forEach((item: JoinRequest) => {
           allAnalyticsCycleRecords.push({
             version: NETWORK_VERSION,
