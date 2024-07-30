@@ -83,13 +83,13 @@ export async function upsertTransaction(transaction: Transaction): Promise<void>
   const transformedTxn = transformTransaction(transaction);
 
   const fields = Object.keys(transformedTxn)
-  const cols = fields.map((field) => `${field}`).join(', ')
-  const updateStrategyOnConflict = fields.map((field) => `${field} = EXCLUDED.${field}`).join(', ')
+  const cols = fields.map((field) => `"${field}"`).join(', ')
+  const updateStrategyOnConflict = fields.map((field) => `"${field}" = EXCLUDED."${field}"`).join(', ')
   const values = Object.values(transformedTxn)
 
   const placeholders = fields.map((_, ind) => `$${ind + 1}`).join(',')
 
-  let sql = `INSERT INTO ${AnalyticsTableNames.TRANSACTIONS}(${cols}) VALUES (${placeholders}) ON CONFLICT ${updateStrategyOnConflict}`
+  let sql = `INSERT INTO ${AnalyticsTableNames.TRANSACTIONS}(${cols}) VALUES (${placeholders}) ON CONFLICT("txId", "txHash") DO UPDATE SET ${updateStrategyOnConflict}`
   await pgDb.run(sql, values)
 }
 
@@ -99,8 +99,8 @@ export async function bulkUpsertTransactions(transactions: Transaction[]): Promi
   }
   const firstTransformedTxn = transformTransaction(transactions[0])
   const fields = Object.keys(firstTransformedTxn)
-  const cols = fields.map((field) => `${field}`).join(', ')
-  const updateStrategyOnConflict = fields.map((field) => `${field} = EXCLUDED.${field}`).join(', ')
+  const cols = fields.map((field) => `"${field}"`).join(', ')
+  const updateStrategyOnConflict = fields.map((field) => `"${field}" = EXCLUDED."${field}"`).join(', ')
 
   const transformedTransactionValues = transactions.map((transaction) => transformTransaction(transaction))
   const placeholders = transformedTransactionValues.map((txn, i) => {
@@ -111,7 +111,7 @@ export async function bulkUpsertTransactions(transactions: Transaction[]): Promi
   }).join(", ")
 
   const values = pgDb.extractValuesFromArray(transformedTransactionValues)
-  const sql = `INSERT INTO ${AnalyticsTableNames.TRANSACTIONS} (${cols}) VALUES ${placeholders} ON CONFLICT ${updateStrategyOnConflict}`
+  const sql = `INSERT INTO ${AnalyticsTableNames.TRANSACTIONS} (${cols}) VALUES ${placeholders} ON CONFLICT("txId", "txHash") DO UPDATE SET ${updateStrategyOnConflict}`
   await pgDb.run(sql, values)
 }
 
