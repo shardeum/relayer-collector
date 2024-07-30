@@ -182,6 +182,7 @@ const transformTransaction = (tx: Transaction) => {
       calculateFullValue(tx.wrappedEVMAccount['readableReceipt']?.['value']),
     amountSpent_decimal:
       tx.wrappedEVMAccount?.['amountSpent'] && calculateFullValue(tx.wrappedEVMAccount?.['amountSpent']),
+    version: NETWORK_VERSION
   }
 }
 
