@@ -1,8 +1,13 @@
 import { type Transaction } from '../storage/transaction'
+import { type Cycle } from '../storage/cycle'
 import * as pgDb from '../storage/pgStorage'
 import { bigIntToHex } from '@ethereumjs/util'
 import BN from 'bn.js'
 import web3 from 'web3'
+import { JoinRequest, JoinedConsensor } from '@shardus/types/build/src/p2p/JoinTypes'
+import { safeJsonParse } from '@shardus/types/build/src/utils/functions/stringify'
+
+const NETWORK_VERSION = '1.11.0'
 
 
 export declare type HexString = string;
@@ -30,7 +35,108 @@ export enum AnalyticsTableNames {
   TRANSACTIONS = 'analyticsTransactions'
 }
 
-const transformTransaction = (tx: Transaction): any => {
+
+
+const idStates = ['startedSyncing', 'finishedSyncing', 'activated', 'removed', 'apoptosized']
+const pubKeyStates = ['standbyAdd', 'standbyRefresh', 'standbyRemove', 'joinedConsensors']
+
+
+type CycleRecordRow = {
+  version: string
+  eventName: string
+  cycleMarker: string
+  counter: number
+  timestampEpoch: number
+  publicKey?: string
+  id?: string
+  externalIp?: string
+  externalPort?: number
+}
+
+const transformCycle = (cycle: Cycle) => {
+  const allAnalyticsCycleRecords: CycleRecordRow[] = []
+
+  if (typeof cycle.cycleRecord === "string") {
+    cycle.cycleRecord = safeJsonParse(cycle.cycleRecord)
+  }
+
+  Object.keys(cycle.cycleRecord).forEach((key) => {
+    const value = cycle.cycleRecord[key]
+
+    if (
+      Array.isArray(value) &&
+      !key.toLowerCase().includes('archivers') &&
+      (idStates.includes(key) || pubKeyStates.includes(key))
+    ) {
+      if (key == 'joinedConsensors') {
+        value.forEach((item: JoinedConsensor) => {
+          allAnalyticsCycleRecords.push({
+            version: NETWORK_VERSION,
+            eventName: key,
+            cycleMarker: cycle.cycleMarker,
+            counter: cycle.counter,
+            timestampEpoch: cycle.cycleRecord.start,
+            publicKey: item.publicKey,
+            id: item.id,
+          })
+        })
+      } else if (key == 'standbyAdd') {
+        console.log(value)
+        value.forEach((item: JoinRequest) => {
+          allAnalyticsCycleRecords.push({
+            version: NETWORK_VERSION,
+            eventName: key,
+            cycleMarker: cycle.cycleMarker,
+            counter: cycle.counter,
+            timestampEpoch: cycle.cycleRecord.start,
+            publicKey: item.nodeInfo.address,
+            externalIp: item.nodeInfo.externalIp,
+            externalPort: item.nodeInfo.externalPort,
+          })
+        })
+      } else if (idStates.includes(key)) {
+        value.forEach((item: string) => {
+          allAnalyticsCycleRecords.push({
+            version: NETWORK_VERSION,
+            eventName: key,
+            cycleMarker: cycle.cycleMarker,
+            counter: cycle.counter,
+            timestampEpoch: cycle.cycleRecord.start,
+            id: item,
+          })
+        })
+      } else if (pubKeyStates.includes(key)) {
+        value.forEach((item: string) => {
+          allAnalyticsCycleRecords.push({
+            version: NETWORK_VERSION,
+            eventName: key,
+            cycleMarker: cycle.cycleMarker,
+            counter: cycle.counter,
+            timestampEpoch: cycle.cycleRecord.start,
+            publicKey: item,
+          })
+        })
+      }
+    }
+  })
+
+  return allAnalyticsCycleRecords
+}
+
+// const transformAccount = (account: DbAccount) => {
+//   account.accountId
+//   account.cycle
+//   account.timestamp
+//   account.ethAddress
+//   account.account
+//   account.hash
+//   account.accountType
+//   account.contractInfo
+//   account.contractType
+//   account.isGlobal
+// }
+
+const transformTransaction = (tx: Transaction) => {
   return {
     txId: tx.txId,
     cycle: tx.cycle,

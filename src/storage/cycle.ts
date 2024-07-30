@@ -11,6 +11,8 @@ import { Utils as StringUtils } from "@shardus/types"
 
 export let Collection: unknown
 
+export { type Cycle } from '../types'
+
 type DbCycle = Cycle & {
   cycleRecord: string
 }
