@@ -20,7 +20,7 @@ export const initializeDB = async (): Promise<void> => {
       'CREATE TABLE if not exists cycles ("cycleMarker" TEXT NOT NULL UNIQUE PRIMARY KEY, "counter" BIGINT NOT NULL, "cycleRecord" JSONB NOT NULL)'
     )
     await pgDb.runCreate(
-      'CREATE TABLE if not exists analyticsCycles ("eventName" TEXT NOT NULL, "cycleMarker" TEXT NOT NULL, counter BIGINT, "timestampEpoch" BIGINT, "publicKey" TEXT, id TEXT, "externalIp" TEXT, "externalPort" BIGINT)'
+      'CREATE TABLE if not exists analyticsCycleRecords ("eventName" TEXT NOT NULL, "cycleMarker" TEXT NOT NULL, counter BIGINT, "timestampEpoch" BIGINT, "publicKey" TEXT, id TEXT, "externalIp" TEXT, "externalPort" BIGINT)'
     )
     await pgDb.runCreate('CREATE INDEX if not exists cycles_idx ON cycles ("counter" DESC)')
     await pgDb.runCreate(
@@ -47,10 +47,10 @@ export const initializeDB = async (): Promise<void> => {
       'CREATE INDEX if not exists accounts_idx ON accounts ("cycle" DESC, "timestamp" DESC, "accountType" ASC, "ethAddress", "contractInfo", "contractType" ASC)'
     )
     await pgDb.runCreate(
-      'CREATE TABLE if not exists transactions ("txId" TEXT NOT NULL, "cycle" BIGINT NOT NULL, "timestamp" BIGINT NOT NULL, "blockNumber" BIGINT NOT NULL, "blockHash" TEXT NOT NULL, "wrappedEVMAccount" JSONB NOT NULL, "txFrom" TEXT NOT NULL, "txTo" TEXT NOT NULL, "nominee" TEXT, "txHash" TEXT NOT NULL, "transactionType" INTEGER NOT NULL, "originalTxData" JSONB, "version" TEXT, PRIMARY KEY ("txId", "txHash"))'
+      'CREATE TABLE if not exists transactions ("txId" TEXT NOT NULL, "cycle" BIGINT NOT NULL, "timestamp" BIGINT NOT NULL, "blockNumber" BIGINT NOT NULL, "blockHash" TEXT NOT NULL, "wrappedEVMAccount" JSONB NOT NULL, "txFrom" TEXT NOT NULL, "txTo" TEXT NOT NULL, "nominee" TEXT, "txHash" TEXT NOT NULL, "transactionType" INTEGER NOT NULL, "originalTxData" JSONB, PRIMARY KEY ("txId", "txHash"))'
     )
 
-    await pgDb.runCreate('CREATE TABLE if not exists analyticsTransactions ("txId" TEXT NOT NULL, "cycle" BIGINT NOT NULL, "timestamp" BIGINT NOT NULL, "blockNumber" BIGINT NOT NULL, "blockHash" TEXT NOT NULL, "txFrom" TEXT NOT NULL, "txTo" TEXT NOT NULL, "nominee" TEXT, "txHash" TEXT NOT NULL, "transactionType" INTEGER NOT NULL, "contractAddress" TEXT, "data" TEXT, "from" VARCHAR(64), "nonce" TEXT, "status" INTEGER, "to" TEXT, "transactionHash" TEXT, "value" TEXT, "isInternalTx" BOOLEAN, "internalTx" JSONB, "accountType" INTEGER, "amountSpent" TEXT, "ethAddress" TEXT, "hash" TEXT, "penalty" TEXT, "reward" TEXT, "stake" TEXT, "totalUnstakeAmount" TEXT, "totalStakeAmount" TEXT, "value_decimal" TEXT, "amountSpent_decimal" TEXT, PRIMARY KEY ("txId", "txHash"))')
+    await pgDb.runCreate('CREATE TABLE if not exists analyticsTransactions ("txId" TEXT NOT NULL, "cycle" BIGINT NOT NULL, "timestamp" BIGINT NOT NULL, "blockNumber" BIGINT NOT NULL, "blockHash" TEXT NOT NULL, "txFrom" TEXT NOT NULL, "txTo" TEXT NOT NULL, "nominee" TEXT, "txHash" TEXT NOT NULL, "transactionType" INTEGER NOT NULL, "contractAddress" TEXT, "data" TEXT, "from" VARCHAR(64), "nonce" TEXT, "status" INTEGER, "to" TEXT, "transactionHash" TEXT, "value" TEXT, "isInternalTx" BOOLEAN, "internalTx" JSONB, "accountType" INTEGER, "amountSpent" TEXT, "ethAddress" TEXT, "hash" TEXT, "penalty" TEXT, "reward" TEXT, "stake" TEXT, "totalUnstakeAmount" TEXT, "totalStakeAmount" TEXT, "value_decimal" TEXT, "amountSpent_decimal" TEXT, "version" TEXT, PRIMARY KEY ("txId", "txHash"))')
 
     await pgDb.runCreate('CREATE INDEX if not exists transactions_hash_id ON transactions ("txHash", "txId")')
     await pgDb.runCreate('CREATE INDEX if not exists transactions_txType ON transactions ("transactionType")')
