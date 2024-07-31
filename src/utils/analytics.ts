@@ -45,7 +45,7 @@ export type CycleRecordRow = {
   externalPort?: number
 }
 
-export const transformCycleRecords = (cycle: Cycle) => {
+export const transformCycle = (cycle: Cycle) => {
   const allAnalyticsCycleRecords: CycleRecordRow[] = []
 
   if (typeof cycle.cycleRecord === "string") {
@@ -68,8 +68,8 @@ export const transformCycleRecords = (cycle: Cycle) => {
             cycleMarker: cycle.cycleMarker,
             counter: cycle.counter,
             timestampEpoch: cycle.cycleRecord.start,
-            publicKey: item.publicKey,
-            id: item.id,
+            publicKey: item.publicKey || "",
+            id: item.id || "",
           })
         })
       } else if (key == 'standbyAdd') {
@@ -80,9 +80,10 @@ export const transformCycleRecords = (cycle: Cycle) => {
             cycleMarker: cycle.cycleMarker,
             counter: cycle.counter,
             timestampEpoch: cycle.cycleRecord.start,
-            publicKey: item.nodeInfo.address,
+            publicKey: item.nodeInfo.address || "",
             externalIp: item.nodeInfo.externalIp,
             externalPort: item.nodeInfo.externalPort,
+            id: ""
           })
         })
       } else if (idStates.includes(key)) {
@@ -93,7 +94,8 @@ export const transformCycleRecords = (cycle: Cycle) => {
             cycleMarker: cycle.cycleMarker,
             counter: cycle.counter,
             timestampEpoch: cycle.cycleRecord.start,
-            id: item,
+            publicKey: "",
+            id: item || "",
           })
         })
       } else if (pubKeyStates.includes(key)) {
@@ -104,7 +106,8 @@ export const transformCycleRecords = (cycle: Cycle) => {
             cycleMarker: cycle.cycleMarker,
             counter: cycle.counter,
             timestampEpoch: cycle.cycleRecord.start,
-            publicKey: item,
+            publicKey: item || "",
+            id: ""
           })
         })
       }

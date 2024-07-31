@@ -8,7 +8,7 @@ import { upsertBlocksForCycle, upsertBlocksForCycles } from './block'
 import { cleanOldReceiptsMap } from './receipt'
 import { cleanOldOriginalTxsMap } from './originalTxData'
 import { Utils as StringUtils } from "@shardus/types"
-import { CycleRecordRow, transformCycleRecords } from '../utils/analytics'
+import { CycleRecordRow, transformCycle } from '../utils/analytics'
 
 export let Collection: unknown
 
@@ -38,9 +38,9 @@ async function bulkInsertAnalyticsCycleRecords(cycleRecords: CycleRecordRow[]) {
       .map((_, i) => `$${i + 1}`)
       .join(', ')
 
-    let sql = `INSERT INTO analyticsCycleRecords (${fields})
+    let sql = `INSERT INTO analyticsCycle (${fields})
       VALUES (${placeholders})
-      ON CONFLICT("eventName", "publicKey", id, "cycleMarker")
+      ON CONFLICT("eventName", "cycleMarker", "publicKey", "id")
       DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
     `
 
@@ -63,7 +63,7 @@ export async function insertCycle(cycle: Cycle): Promise<void> {
       `
       await pgDb.run(sql, values)
 
-      await bulkInsertAnalyticsCycleRecords(transformCycleRecords(cycle))
+      await bulkInsertAnalyticsCycleRecords(transformCycle(cycle))
     } else {
       const placeholders = Object.keys(cycle).fill('?').join(', ')
       const sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
@@ -100,7 +100,7 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
 
       await pgDb.run(sql, values)
 
-      await bulkInsertAnalyticsCycleRecords(flatten(cycles.map((cycle) => transformCycleRecords(cycle))))
+      await bulkInsertAnalyticsCycleRecords(flatten(cycles.map((cycle) => transformCycle(cycle))))
     } else {
 
       const placeholders = Object.keys(cycles[0]).fill('?').join(', ')
