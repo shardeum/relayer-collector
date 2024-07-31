@@ -29,19 +29,11 @@ export const calculateFullValue = (value: string | BN): string => {
   }
 }
 
-export enum AnalyticsTableNames {
-  ACCOUNTS = 'analyticsAccounts',
-  CYCLES = 'analyticsCycles',
-  TRANSACTIONS = 'analyticsTransactions'
-}
-
-
 
 const idStates = ['startedSyncing', 'finishedSyncing', 'activated', 'removed', 'apoptosized']
 const pubKeyStates = ['standbyAdd', 'standbyRefresh', 'standbyRemove', 'joinedConsensors']
 
-
-type CycleRecordRow = {
+export type CycleRecordRow = {
   version: string
   eventName: string
   cycleMarker: string
@@ -53,7 +45,7 @@ type CycleRecordRow = {
   externalPort?: number
 }
 
-const transformCycle = (cycle: Cycle) => {
+export const transformCycleRecords = (cycle: Cycle) => {
   const allAnalyticsCycleRecords: CycleRecordRow[] = []
 
   if (typeof cycle.cycleRecord === "string") {
@@ -81,7 +73,6 @@ const transformCycle = (cycle: Cycle) => {
           })
         })
       } else if (key == 'standbyAdd') {
-        console.log(value)
         value.forEach((item: JoinRequest) => {
           allAnalyticsCycleRecords.push({
             version: NETWORK_VERSION,
@@ -123,20 +114,7 @@ const transformCycle = (cycle: Cycle) => {
   return allAnalyticsCycleRecords
 }
 
-// const transformAccount = (account: DbAccount) => {
-//   account.accountId
-//   account.cycle
-//   account.timestamp
-//   account.ethAddress
-//   account.account
-//   account.hash
-//   account.accountType
-//   account.contractInfo
-//   account.contractType
-//   account.isGlobal
-// }
-
-const transformTransaction = (tx: Transaction) => {
+export const transformTransaction = (tx: Transaction) => {
   return {
     txId: tx.txId,
     cycle: tx.cycle,
@@ -182,50 +160,7 @@ const transformTransaction = (tx: Transaction) => {
       calculateFullValue(tx.wrappedEVMAccount['readableReceipt']?.['value']),
     amountSpent_decimal:
       tx.wrappedEVMAccount?.['amountSpent'] && calculateFullValue(tx.wrappedEVMAccount?.['amountSpent']),
-    version: NETWORK_VERSION
+    version: NETWORK_VERSION,
+    wrappedEVMAccount: tx.wrappedEVMAccount
   }
 }
-
-export async function upsertTransaction(transaction: Transaction): Promise<void> {
-  const transformedTxn = transformTransaction(transaction);
-
-  const fields = Object.keys(transformedTxn)
-  const cols = fields.map((field) => `"${field}"`).join(', ')
-  const updateStrategyOnConflict = fields.map((field) => `"${field}" = EXCLUDED."${field}"`).join(', ')
-  const values = Object.values(transformedTxn)
-
-  const placeholders = fields.map((_, ind) => `$${ind + 1}`).join(',')
-
-  let sql = `INSERT INTO ${AnalyticsTableNames.TRANSACTIONS}(${cols}) VALUES (${placeholders}) ON CONFLICT("txId", "txHash") DO UPDATE SET ${updateStrategyOnConflict}`
-  await pgDb.run(sql, values)
-}
-
-export async function bulkUpsertTransactions(transactions: Transaction[]): Promise<void> {
-  if ((typeof transactions === 'undefined') || (transactions.length == 0)) {
-    return;
-  }
-  const firstTransformedTxn = transformTransaction(transactions[0])
-  const fields = Object.keys(firstTransformedTxn)
-  const cols = fields.map((field) => `"${field}"`).join(', ')
-  const updateStrategyOnConflict = fields.map((field) => `"${field}" = EXCLUDED."${field}"`).join(', ')
-
-  const transformedTransactionValues = transactions.map((transaction) => transformTransaction(transaction))
-  const placeholders = transformedTransactionValues.map((txn, i) => {
-    const currentPlaceholders = Object.keys(txn)
-      .map((_, j) => `$${i * Object.keys(txn).length + j + 1}`)
-      .join(', ')
-    return `(${currentPlaceholders})`
-  }).join(", ")
-
-  const values = pgDb.extractValuesFromArray(transformedTransactionValues)
-  const sql = `INSERT INTO ${AnalyticsTableNames.TRANSACTIONS} (${cols}) VALUES ${placeholders} ON CONFLICT("txId", "txHash") DO UPDATE SET ${updateStrategyOnConflict}`
-  await pgDb.run(sql, values)
-}
-
-
-
-
-
-
-
-

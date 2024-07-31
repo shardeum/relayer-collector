@@ -43,11 +43,15 @@ export async function insertTransaction(transaction: Transaction): Promise<void>
     const values = extractValues(transaction)
 
     if (config.postgresEnabled) {
+      const tTransaction = analyticsUtil.transformTransaction(transaction)
+
+      const fields = Object.keys(tTransaction).map((field) => `"${field}"`).join(', ')
+      const values = extractValues(tTransaction)
+
       let sql = `INSERT INTO transactions (${fields}) VALUES `
-      sql += `(${Object.keys(transaction).map((_, i) => `$${i + 1}`).join(', ')})`
+      sql += `(${Object.keys(tTransaction).map((_, i) => `$${i + 1}`).join(', ')})`
       sql += ` ON CONFLICT(txId, txHash) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values, 'default')
-      await analyticsUtil.upsertTransaction(transaction)
     } else {
       const placeholders = Object.keys(transaction).fill('?').join(', ')
       const sql = 'INSERT OR REPLACE INTO transactions (' + fields + ') VALUES (' + placeholders + ')'
@@ -66,17 +70,22 @@ export async function bulkInsertTransactions(transactions: Transaction[]): Promi
     const values = extractValuesFromArray(transactions)
 
     if (config.postgresEnabled) {
+      const tTransactions = transactions.map((transaction) => analyticsUtil.transformTransaction(transaction))
+
+      const fields = Object.keys(tTransactions[0]).map((field) => `"${field}"`).join(', ')
+
+      const values = extractValuesFromArray(tTransactions)
+
       let sql = `INSERT INTO transactions (${fields}) VALUES `
-      sql += transactions.map((_, i) => {
-        const currentPlaceholders = Object.keys(transactions[0])
-          .map((_, j) => `$${i * Object.keys(transactions[0]).length + j + 1}`)
+      sql += tTransactions.map((_, i) => {
+        const currentPlaceholders = Object.keys(tTransactions[0])
+          .map((_, j) => `$${i * Object.keys(tTransactions[0]).length + j + 1}`)
           .join(', ')
         return `(${currentPlaceholders})`
       }).join(", ")
 
       sql += ` ON CONFLICT(txId, txHash) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
       await pgDb.run(sql, values, 'default')
-      await analyticsUtil.bulkUpsertTransactions(transactions)
     } else {
       const placeholders = Object.keys(transactions[0]).fill('?').join(', ')
       let sql = 'INSERT OR REPLACE INTO transactions (' + fields + ') VALUES (' + placeholders + ')'
@@ -105,7 +114,6 @@ export async function updateTransaction(_txId: string, transaction: Partial<Tran
       await pgDb.run(sql, values, 'default')
       const getUpdatedTxnSql = 'SELECT * FROM transactions WHERE txId = $1, txHash = $2'
       const updatedTransaction = (await pgDb.get(getUpdatedTxnSql, [transaction.txId, transaction.txHash])) as Transaction
-      await analyticsUtil.upsertTransaction(updatedTransaction)
     } else {
       const sql = `UPDATE transactions SET cycle = $cycle, wrappedEVMAccount = $wrappedEVMAccount, txHash = $txHash WHERE txId = $txId`
       await db.run(sql, {

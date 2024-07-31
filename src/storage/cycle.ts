@@ -8,6 +8,7 @@ import { upsertBlocksForCycle, upsertBlocksForCycles } from './block'
 import { cleanOldReceiptsMap } from './receipt'
 import { cleanOldOriginalTxsMap } from './originalTxData'
 import { Utils as StringUtils } from "@shardus/types"
+import { CycleRecordRow, transformCycleRecords } from '../utils/analytics'
 
 export let Collection: unknown
 
@@ -19,6 +20,32 @@ type DbCycle = Cycle & {
 
 export function isCycle(obj: Cycle): obj is Cycle {
   return (obj as Cycle).cycleRecord !== undefined && (obj as Cycle).cycleMarker !== undefined
+}
+
+const flatten = (arr: unknown[]) => {
+  return [].concat.apply([], arr)
+}
+
+async function bulkInsertAnalyticsCycleRecords(cycleRecords: CycleRecordRow[]) {
+  if (cycleRecords.length <= 0) return
+
+  for (let index = 0; index < cycleRecords.length; index++) {
+    const cycleRecord = cycleRecords[index];
+
+    const fields = Object.keys(cycleRecord).join(', ')
+    const values = extractValues(cycleRecord)
+    const placeholders = Object.keys(cycleRecord)
+      .map((_, i) => `$${i + 1}`)
+      .join(', ')
+
+    let sql = `INSERT INTO analyticsCycleRecords (${fields})
+      VALUES (${placeholders})
+      ON CONFLICT("eventName", "publicKey", id, "cycleMarker")
+      DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+    `
+
+    await pgDb.run(sql, values)
+  }
 }
 
 export async function insertCycle(cycle: Cycle): Promise<void> {
@@ -34,8 +61,9 @@ export async function insertCycle(cycle: Cycle): Promise<void> {
         ON CONFLICT(cycleMarker)
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
-
       await pgDb.run(sql, values)
+
+      await bulkInsertAnalyticsCycleRecords(transformCycleRecords(cycle))
     } else {
       const placeholders = Object.keys(cycle).fill('?').join(', ')
       const sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
@@ -71,6 +99,8 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
       sql += ` ON CONFLICT(cycleMarker) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
       await pgDb.run(sql, values)
+
+      await bulkInsertAnalyticsCycleRecords(flatten(cycles.map((cycle) => transformCycleRecords(cycle))))
     } else {
 
       const placeholders = Object.keys(cycles[0]).fill('?').join(', ')
