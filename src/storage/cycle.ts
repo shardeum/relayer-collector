@@ -40,7 +40,7 @@ async function bulkInsertAnalyticsCycleRecords(cycleRecords: CycleRecordRow[]) {
 
     let sql = `INSERT INTO analyticsCycle (${fields})
       VALUES (${placeholders})
-      ON CONFLICT("eventName", "cycleMarker", "publicKey", "id")
+      ON CONFLICT("key")
       DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
     `
 
