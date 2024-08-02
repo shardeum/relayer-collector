@@ -61,6 +61,11 @@ The log server can be started using:
 npm run log_server
 ```
 
+### Health Check
+
+GET `/is-alive` this endpoint returns 200 if the server is running.
+GET `/is-healthy` currently the same as `/is-alive` but will be expanded.
+
 ## Contributing
 
 Contributions are highly encouraged! We welcome everyone to participate in our codebases, issue trackers, and any other form of communication. However, we expect all contributors to adhere to our [code of conduct](./CODE_OF_CONDUCT.md) to ensure a positive and collaborative environment for all involved in the project.
