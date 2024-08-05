@@ -46,81 +46,148 @@ export type CycleRecordRow = {
   key: string
 }
 
-export const transformCycle = (cycle: Cycle) => {
-  const allAnalyticsCycleRecords: CycleRecordRow[] = []
-
+export const transformCycle = async (cycle: Cycle) => {
   if (typeof cycle.cycleRecord === "string") {
     cycle.cycleRecord = safeJsonParse(cycle.cycleRecord)
   }
 
-  Object.keys(cycle.cycleRecord).forEach((key) => {
+  if (cycle.cycleRecord.mode == "shutdown") {
+    let sql = `UPDATE analyticsCycle
+      SET
+          "leftTime" = $1,
+          "endCycle" = $2
+      WHERE
+          "leftTime" IS NULL AND
+          "endCycle" IS NULL AND
+          "startCycle" IS NOT NULL;
+      `
+    const values = [cycle.cycleRecord.start, cycle.counter]
+    await pgDb.run(sql, values)
+
+
+    sql = `UPDATE analyticsCycle
+      SET
+          "leftTime" = $1,
+          "endCycle" = $2,
+          "startCycle" = $2
+      WHERE
+          "leftTime" IS NULL AND
+          "endCycle" IS NULL AND
+          "startCycle" IS NULL;
+      `
+
+    await pgDb.run(sql, values)
+    return
+  }
+
+  for (let i = 0; i < Object.keys(cycle.cycleRecord).length; i++) {
+    const key = Object.keys(cycle.cycleRecord)[i];
     const value = cycle.cycleRecord[key]
+    let sql: string = ""
 
     if (
       Array.isArray(value) &&
       !key.toLowerCase().includes('archivers') &&
       (idStates.includes(key) || pubKeyStates.includes(key))
     ) {
-      if (key == 'joinedConsensors') {
-        value.forEach((item: JoinedConsensor) => {
-          allAnalyticsCycleRecords.push({
-            version: NETWORK_VERSION,
-            eventName: key,
-            cycleMarker: cycle.cycleMarker,
-            counter: cycle.counter,
-            timestampEpoch: cycle.cycleRecord.start,
-            publicKey: item.publicKey || "",
-            id: item.id || "",
-            key: `${cycle.cycleMarker}::${key}::${item.publicKey}::${item.id}`
-          })
-        })
-      } else if (key == 'standbyAdd') {
-        value.forEach((item: JoinRequest) => {
-          allAnalyticsCycleRecords.push({
-            version: NETWORK_VERSION,
-            eventName: key,
-            cycleMarker: cycle.cycleMarker,
-            counter: cycle.counter,
-            timestampEpoch: cycle.cycleRecord.start,
-            publicKey: item.nodeInfo.address || "",
-            externalIp: item.nodeInfo.externalIp,
-            externalPort: item.nodeInfo.externalPort,
-            id: "",
-            key: `${cycle.cycleMarker}::${key}::${item.nodeInfo.address}::${""}`
-          })
-        })
-      } else if (idStates.includes(key)) {
-        value.forEach((item: string) => {
-          allAnalyticsCycleRecords.push({
-            version: NETWORK_VERSION,
-            eventName: key,
-            cycleMarker: cycle.cycleMarker,
-            counter: cycle.counter,
-            timestampEpoch: cycle.cycleRecord.start,
-            publicKey: "",
-            id: item || "",
-            key: `${cycle.cycleMarker}::${key}::${""}::${item}`
-          })
-        })
-      } else if (pubKeyStates.includes(key)) {
-        value.forEach((item: string) => {
-          allAnalyticsCycleRecords.push({
-            version: NETWORK_VERSION,
-            eventName: key,
-            cycleMarker: cycle.cycleMarker,
-            counter: cycle.counter,
-            timestampEpoch: cycle.cycleRecord.start,
-            publicKey: item || "",
-            id: "",
-            key: `${cycle.cycleMarker}::${key}::${item}::${""}`
-          })
-        })
+      switch (key) {
+        case "standbyAdd":
+          const fields = ["nominator", "publicKey", "joinedTime"].map((e) => `"${e}"`).join(", ")
+
+          sql = `INSERT INTO analyticsCycle (${fields})
+          VALUES ($1, $2, $3)
+        `
+
+          for (let index = 0; index < value.length; index++) {
+            const item: JoinRequest = value[index];
+            const values = []
+
+            values.push(item?.appJoinData?.stakeCert?.nominator ?? null)
+            values.push(item.nodeInfo.address)
+            values.push(cycle.cycleRecord.start)
+
+            await pgDb.run(sql, values)
+          }
+
+          break;
+
+        case "standbyRemove":
+        case "lostAfterSelection":
+        case "lostSyncing":
+
+          sql = `UPDATE analyticsCycle
+            SET "leftTime" = $1
+            WHERE "publicKey" = $2
+            AND "leftTime" IS NULL;`
+
+          for (let index = 0; index < value.length; index++) {
+            const item: string = value[index];
+
+            const values = []
+            values.push(cycle.cycleRecord.start)
+            values.push(item)
+
+            await pgDb.run(sql, values)
+          }
+          break;
+
+        case "joinedConsensors":
+          sql = `UPDATE analyticsCycle
+            SET "nodeId" = $1
+            WHERE "publicKey" = $2
+            AND "nodeId" IS NULL;`
+
+          for (let index = 0; index < value.length; index++) {
+            const item: JoinedConsensor = value[index];
+
+            const values = []
+            values.push(item.id)
+            values.push(item.publicKey)
+
+            await pgDb.run(sql, values)
+          }
+          break;
+
+        case "activated":
+          sql = `UPDATE analyticsCycle
+            SET "startCycle" = $1
+            WHERE "nodeId" = $2;`
+
+          for (let index = 0; index < value.length; index++) {
+            const item: string = value[index];
+
+            const values = []
+            values.push(cycle.counter)
+            values.push(item)
+
+            await pgDb.run(sql, values)
+          }
+          break;
+        case "apoptosized":
+        case "removed":
+          sql = `UPDATE analyticsCycle
+            SET "endCycle" = $1,
+                "leftTime" = $2
+            WHERE "nodeId" = $3;`
+          for (let index = 0; index < value.length; index++) {
+            const item: string = value[index];
+
+            const values = []
+            values.push(cycle.counter)
+            values.push(cycle.cycleRecord.start)
+            values.push(item)
+
+            await pgDb.run(sql, values)
+          }
+          break;
+        default:
+          break;
       }
     }
-  })
+  }
 
-  return allAnalyticsCycleRecords
 }
+
 
 export const transformTransaction = (tx: Transaction) => {
   return {

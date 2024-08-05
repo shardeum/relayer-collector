@@ -22,31 +22,31 @@ export function isCycle(obj: Cycle): obj is Cycle {
   return (obj as Cycle).cycleRecord !== undefined && (obj as Cycle).cycleMarker !== undefined
 }
 
-const flatten = (arr: unknown[]) => {
-  return [].concat.apply([], arr)
-}
+// const flatten = (arr: unknown[]) => {
+//   return [].concat.apply([], arr)
+// }
 
-async function bulkInsertAnalyticsCycleRecords(cycleRecords: CycleRecordRow[]) {
-  if (cycleRecords.length <= 0) return
+// async function bulkInsertAnalyticsCycleRecords(cycleRecords: CycleRecordRow[]) {
+//   if (cycleRecords.length <= 0) return
 
-  for (let index = 0; index < cycleRecords.length; index++) {
-    const cycleRecord = cycleRecords[index];
+//   for (let index = 0; index < cycleRecords.length; index++) {
+//     const cycleRecord = cycleRecords[index];
 
-    const fields = Object.keys(cycleRecord).join(', ')
-    const values = extractValues(cycleRecord)
-    const placeholders = Object.keys(cycleRecord)
-      .map((_, i) => `$${i + 1}`)
-      .join(', ')
+//     const fields = Object.keys(cycleRecord).join(', ')
+//     const values = extractValues(cycleRecord)
+//     const placeholders = Object.keys(cycleRecord)
+//       .map((_, i) => `$${i + 1}`)
+//       .join(', ')
 
-    let sql = `INSERT INTO analyticsCycle (${fields})
-      VALUES (${placeholders})
-      ON CONFLICT("key")
-      DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
-    `
+//     let sql = `INSERT INTO analyticsCycle (${fields})
+//       VALUES (${placeholders})
+//       ON CONFLICT("key")
+//       DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+//     `
 
-    await pgDb.run(sql, values)
-  }
-}
+//     await pgDb.run(sql, values)
+//   }
+// }
 
 export async function insertCycle(cycle: Cycle): Promise<void> {
   try {
@@ -63,7 +63,7 @@ export async function insertCycle(cycle: Cycle): Promise<void> {
       `
       await pgDb.run(sql, values)
 
-      await bulkInsertAnalyticsCycleRecords(transformCycle(cycle))
+      await transformCycle(cycle)
     } else {
       const placeholders = Object.keys(cycle).fill('?').join(', ')
       const sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
@@ -100,7 +100,7 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
 
       await pgDb.run(sql, values)
 
-      await bulkInsertAnalyticsCycleRecords(flatten(cycles.map((cycle) => transformCycle(cycle))))
+      cycles.map(async (cycle) => await transformCycle(cycle))
     } else {
 
       const placeholders = Object.keys(cycles[0]).fill('?').join(', ')

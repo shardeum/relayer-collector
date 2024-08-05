@@ -20,7 +20,7 @@ export const initializeDB = async (): Promise<void> => {
       'CREATE TABLE if not exists cycles ("cycleMarker" TEXT NOT NULL UNIQUE PRIMARY KEY, "counter" BIGINT NOT NULL, "cycleRecord" JSONB NOT NULL)'
     )
     await pgDb.runCreate(
-      'CREATE TABLE if not exists analyticsCycle ("eventName" TEXT NOT NULL, "cycleMarker" TEXT NOT NULL, counter BIGINT, "timestampEpoch" BIGINT, "publicKey" TEXT, id TEXT, "externalIp" TEXT, "externalPort" BIGINT, "version" TEXT, "key" TEXT NOT NULL, PRIMARY KEY ("key"))'
+      'CREATE TABLE if not exists analyticsCycle ("nominator" TEXT, "publicKey" TEXT, "nodeId" TEXT, "joinedTime" BIGINT, "leftTime" BIGINT, "startCycle" BIGINT, "endCycle" BIGINT)'
     )
     await pgDb.runCreate('CREATE INDEX if not exists cycles_idx ON cycles ("counter" DESC)')
     await pgDb.runCreate(
