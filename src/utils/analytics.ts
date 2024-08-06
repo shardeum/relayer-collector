@@ -6,6 +6,7 @@ import BN from 'bn.js'
 import web3 from 'web3'
 import { JoinRequest, JoinedConsensor } from '@shardus/types/build/src/p2p/JoinTypes'
 import { safeJsonParse } from '@shardus/types/build/src/utils/functions/stringify'
+import { TransactionType, InternalTXType } from '../types'
 
 const NETWORK_VERSION = '1.11.0'
 
@@ -190,6 +191,21 @@ export const transformCycle = async (cycle: Cycle) => {
 
 
 export const transformTransaction = (tx: Transaction) => {
+  const internalTX = tx.wrappedEVMAccount['readableReceipt']?.['internalTx']
+  let internalTXType = undefined
+
+  if (internalTX) {
+    internalTXType = internalTX?.['internalTXType']
+  } else {
+    if (tx.transactionType === TransactionType.StakeReceipt) {
+      internalTXType = InternalTXType.Stake
+    } else if (tx.transactionType === TransactionType.UnstakeReceipt) {
+      internalTXType = InternalTXType.Unstake
+    } else {
+      internalTXType = undefined
+    }
+  }
+
   return {
     txId: tx.txId,
     cycle: tx.cycle,
@@ -236,6 +252,15 @@ export const transformTransaction = (tx: Transaction) => {
     amountSpent_decimal:
       tx.wrappedEVMAccount?.['amountSpent'] && calculateFullValue(tx.wrappedEVMAccount?.['amountSpent']),
     version: NETWORK_VERSION,
+    rewardAmount:
+      tx.wrappedEVMAccount['readableReceipt']?.['rewardAmount'] &&
+      bigIntToHex(tx.wrappedEVMAccount['readableReceipt']?.['rewardAmount']),
+    penaltyAmount:
+      tx.wrappedEVMAccount['readableReceipt']?.['penaltyAmount'] &&
+      bigIntToHex(tx.wrappedEVMAccount['readableReceipt']?.['penaltyAmount']),
+    violationType:
+      tx.wrappedEVMAccount['readableReceipt']?.['internalTX']?.['violationType'],
+    internalTXType: internalTXType,
     wrappedEVMAccount: tx.wrappedEVMAccount
   }
 }
