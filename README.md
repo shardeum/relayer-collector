@@ -10,17 +10,37 @@ The Data Distribution System is designed to efficiently handle the flow of data 
 
 ```bash
 git clone https://github.com/shardeum/relayer-collector.git
-git switch dev
+cd relayer-collector/
+git checkout dev
 npm install
 ```
 
 2. Configure the [config.json](./config.json) with correct `distributorInfo` and `collectorInfo`
 
-Set the **ip**, **port**, and **publicKey** of the distributor service in the `distributorInfo` object, and the public and secret keys of the collector service in the `collectorInfo` object. To properly configure and connect to a Distributor service, you will need specific information such as the public key and endpoint details of the Distributor. This information can be obtained in two ways:
+Set the **ip**, **port**, and **publicKey** of the distributor service in the `distributorInfo` object, and the public and secret keys of the collector service in the `collectorInfo` object. You can request distributor and collector info from the Shardeum team or else you can generate a key-pair of your own and request the administrator to whitelist your keys on the one of the running distributors.
 
-- Run the Distributor Locally: If you are developing locally or testing, you can run a Distributor instance on your machine. This will allow you to easily retrieve the necessary configuration details such as the public key and endpoint URL.
+```bash
+"distributorInfo": {
+ "ip": "<distributor-server-ip>",     //eg: 127.0.0.1
+ "port": "<distributor-server-port>", //eg: 6100
+ "publicKey": "distributor-server-public-key"
+},
+ 
+"collectorInfo": {
+ "publicKey": "<collector-pub-key>",
+ "secretKey": "<collector-secret-key>"
+}
+```
 
-- Obtain Information from the Shardeum Production Network: For production deployment or if you are connecting to the main Shardeum network, you can query the `/config` endpoint of the Distributor service. This endpoint will provide you with the necessary configuration details.
+To generate key-pair for collector, do the following
+
+```bash
+# Navigate to the Shardeum repository
+cd path/to/shardeum/repo  # https://github.com/shardeum/shardeum
+
+# Generate a new wallet
+node scripts/generateWallet.js
+```
 
 3. Update `src/config/index.ts` with the following settings
 
@@ -32,19 +52,15 @@ blockIndexing: {
 enableCollectorSocketServer: false
 ```
 
+The `enableShardeumIndexer` flag, when enabled, allows the collector to save accounts data in a format required by the service Validator, in addition to its standard data storage; it's typically set to `false` for most use cases.
+
 4. Now you can compile the project using the following command
 
 ```bash
-npm run compile
+npm run prepare
 ```
 
-5. Run the collector service
-
-```bash
-npm run collector
-```
-
-To start the main data collector, run
+5. To start the main data collector, run
 
 ```bash
 pm2 start --name collector-data-server --node-args="--max_old_space_size=16000" npm -- run collector
@@ -62,7 +78,7 @@ Check the logs for any errors or issues during startup and operation. By followi
 
 ### Collector Service
 
-The Collector service connects to a distributor service as configured in `config.json`. It can be started with the following command:
+The Collector service connects to a distributor service as configured in [config.json](./config.json). It can be started with the following command:
 
 ```bash
 npm run collector
@@ -70,8 +86,8 @@ npm run collector
 
 Here's what the Collector does:
 
-**Data Syncing:** Initiates a data syncing process in which it queries all the historical data (Accounts, Transactions, Receipts etc) from the distributor and saves it to its own SQLite DB.
-**Real-time Data Subscription:** Simultaneously, it subscribes to real-time data from the distributor and writes it to a log file (under **`/data-logs`**) and the SQLite DB.
+- **Data Syncing:** Initiates a data syncing process in which it queries all the historical data (Accounts, Transactions, Receipts etc) from the distributor and saves it to its own SQLite DB.
+- **Real-time Data Subscription:** Simultaneously, it subscribes to real-time data from the distributor and writes it to a log file (under **`/data-logs`**) and the SQLite DB.
 
 ### Server
 
