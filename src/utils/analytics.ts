@@ -56,11 +56,11 @@ export const transformCycle = async (cycle: Cycle) => {
     let sql = `UPDATE analyticsCycle
       SET
           "leftTime" = $1,
-          "endCycle" = $2
+          "activeEndCycle" = $2
       WHERE
           "leftTime" IS NULL AND
-          "endCycle" IS NULL AND
-          "startCycle" IS NOT NULL;
+          "activeEndCycle" IS NULL AND
+          "activeStartCycle" IS NOT NULL;
       `
     const values = [cycle.cycleRecord.start, cycle.counter]
     await pgDb.run(sql, values)
@@ -69,12 +69,12 @@ export const transformCycle = async (cycle: Cycle) => {
     sql = `UPDATE analyticsCycle
       SET
           "leftTime" = $1,
-          "endCycle" = $2,
-          "startCycle" = $2
+          "activeEndCycle" = $2,
+          "activeStartCycle" = $2
       WHERE
           "leftTime" IS NULL AND
-          "endCycle" IS NULL AND
-          "startCycle" IS NULL;
+          "activeEndCycle" IS NULL AND
+          "activeStartCycle" IS NULL;
       `
 
     await pgDb.run(sql, values)
@@ -151,7 +151,7 @@ export const transformCycle = async (cycle: Cycle) => {
 
         case "activated":
           sql = `UPDATE analyticsCycle
-            SET "startCycle" = $1
+            SET "activeStartCycle" = $1
             WHERE "nodeId" = $2;`
 
           for (let index = 0; index < value.length; index++) {
@@ -167,7 +167,7 @@ export const transformCycle = async (cycle: Cycle) => {
         case "apoptosized":
         case "removed":
           sql = `UPDATE analyticsCycle
-            SET "endCycle" = $1,
+            SET "activeEndCycle" = $1,
                 "leftTime" = $2
             WHERE "nodeId" = $3;`
           for (let index = 0; index < value.length; index++) {
