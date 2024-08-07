@@ -63,8 +63,8 @@ npm run log_server
 
 ### Health Check
 
-GET `/is-alive` this endpoint returns 200 if the server is running.
-GET `/is-healthy` currently the same as `/is-alive` but will be expanded.
+- GET `/is-alive` this endpoint returns 200 if the server is running.
+- GET `/is-healthy` currently the same as `/is-alive` but will be expanded.
 
 ## Contributing
 
