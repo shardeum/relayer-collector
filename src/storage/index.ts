@@ -16,6 +16,15 @@ export const initializeDB = async (): Promise<void> => {
     await pgDb.init({
       enableShardeumIndexer: config.enableShardeumIndexer
     })
+
+    await pgDb.runCreate(
+      'CREATE TABLE if not exists metadata ("key" TEXT NOT NULL UNIQUE PRIMARY KEY, "value" TEXT)'
+    )
+
+    await pgDb.runCreate(
+      `INSERT INTO metadata ("key", "value") VALUES ('cycleCounter', '0') ON CONFLICT("key") DO NOTHING;`
+    )
+
     await pgDb.runCreate(
       'CREATE TABLE if not exists cycles ("cycleMarker" TEXT NOT NULL UNIQUE PRIMARY KEY, "counter" BIGINT NOT NULL, "cycleRecord" JSONB NOT NULL)'
     )

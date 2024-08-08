@@ -26,27 +26,29 @@ export function isCycle(obj: Cycle): obj is Cycle {
 //   return [].concat.apply([], arr)
 // }
 
-// async function bulkInsertAnalyticsCycleRecords(cycleRecords: CycleRecordRow[]) {
-//   if (cycleRecords.length <= 0) return
+let cycleToProcess = -1
 
-//   for (let index = 0; index < cycleRecords.length; index++) {
-//     const cycleRecord = cycleRecords[index];
+async function updateCycleAnalytics() {
+  if (cycleToProcess == -1) {
+    const cycleStr = await pgDb.all(`select "value" from metadata where key='cycleCounter'`)
+    cycleToProcess = Number(cycleStr[0]['value'])
 
-//     const fields = Object.keys(cycleRecord).join(', ')
-//     const values = extractValues(cycleRecord)
-//     const placeholders = Object.keys(cycleRecord)
-//       .map((_, i) => `$${i + 1}`)
-//       .join(', ')
-
-//     let sql = `INSERT INTO analyticsCycle (${fields})
-//       VALUES (${placeholders})
-//       ON CONFLICT("key")
-//       DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
-//     `
-
-//     await pgDb.run(sql, values)
-//   }
-// }
+    console.log({ cycleStr, cycleToProcess })
+  }
+  while (true) {
+    console.log(`Trying to process cycle: ${cycleToProcess}`)
+    const cycle = await queryCycleByCounter(cycleToProcess)
+    if (cycle) {
+      console.log(`Processing cycle: ${cycleToProcess}`)
+      await transformCycle(cycle)
+      cycleToProcess += 1
+      await pgDb.run(`UPDATE metadata SET "value"=$1 where "key"='cycleCounter'`, [cycleToProcess])
+    } else {
+      console.log(`Couldn't process cycle: ${cycleToProcess}`)
+      break
+    }
+  }
+}
 
 export async function insertCycle(cycle: Cycle): Promise<void> {
   try {
@@ -63,7 +65,8 @@ export async function insertCycle(cycle: Cycle): Promise<void> {
       `
       await pgDb.run(sql, values)
 
-      await transformCycle(cycle)
+      // await transformCycle(cycle)
+      await updateCycleAnalytics()
     } else {
       const placeholders = Object.keys(cycle).fill('?').join(', ')
       const sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
@@ -100,7 +103,8 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
 
       await pgDb.run(sql, values)
 
-      cycles.map(async (cycle) => await transformCycle(cycle))
+      // cycles.map(async (cycle) => await transformCycle(cycle))
+      await updateCycleAnalytics()
     } else {
 
       const placeholders = Object.keys(cycles[0]).fill('?').join(', ')
