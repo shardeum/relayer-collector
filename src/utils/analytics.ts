@@ -149,7 +149,8 @@ export const transformCycle = async (cycle: Cycle) => {
           sql = `UPDATE analyticsCycle
             SET "nodeId" = $1
             WHERE "publicKey" = $2
-            AND "nodeId" IS NULL;`
+            AND "nodeId" IS NULL
+            AND "leftTime" IS NULL;`
 
           for (let index = 0; index < value.length; index++) {
             const item: JoinedConsensor = value[index];
@@ -165,7 +166,8 @@ export const transformCycle = async (cycle: Cycle) => {
         case "activated":
           sql = `UPDATE analyticsCycle
             SET "activeStartCycle" = $1
-            WHERE "nodeId" = $2;`
+            WHERE "nodeId" = $2
+            AND "leftTime" IS NULL;`
 
           for (let index = 0; index < value.length; index++) {
             const item: string = value[index];
@@ -182,7 +184,8 @@ export const transformCycle = async (cycle: Cycle) => {
           sql = `UPDATE analyticsCycle
             SET "activeEndCycle" = $1,
                 "leftTime" = $2
-            WHERE "nodeId" = $3;`
+            WHERE "nodeId" = $3
+            AND "leftTime" IS NULL;`
           for (let index = 0; index < value.length; index++) {
             const item: string = value[index];
 
