@@ -31,7 +31,7 @@ export const calculateFullValue = (value: string | BN): string => {
 }
 
 
-const idStates = ['startedSyncing', 'finishedSyncing', 'activated', 'removed', 'apoptosized']
+const idStates = ['startedSyncing', 'finishedSyncing', 'activated', 'removed', 'apoptosized', 'lostAfterSelection', 'lostSyncing']
 const pubKeyStates = ['standbyAdd', 'standbyRefresh', 'standbyRemove', 'joinedConsensors']
 
 export type CycleRecordRow = {
@@ -68,16 +68,14 @@ export const transformCycle = async (cycle: Cycle) => {
 
     sql = `UPDATE analyticsCycle
       SET
-          "leftTime" = $1,
-          "activeEndCycle" = $2,
-          "activeStartCycle" = $2
+          "leftTime" = $1
       WHERE
           "leftTime" IS NULL AND
           "activeEndCycle" IS NULL AND
           "activeStartCycle" IS NULL;
       `
 
-    await pgDb.run(sql, values)
+    await pgDb.run(sql, [cycle.cycleRecord.start])
     return
   }
 
@@ -112,9 +110,24 @@ export const transformCycle = async (cycle: Cycle) => {
 
           break;
 
-        case "standbyRemove":
         case "lostAfterSelection":
         case "lostSyncing":
+          sql = `UPDATE analyticsCycle
+            SET "leftTime" = $1
+            WHERE "nodeId" = $2
+            AND "leftTime" IS NULL;`
+
+          for (let index = 0; index < value.length; index++) {
+            const item: string = value[index];
+
+            const values = []
+            values.push(cycle.cycleRecord.start)
+            values.push(item)
+
+            await pgDb.run(sql, values)
+          }
+          break;
+        case "standbyRemove":
 
           sql = `UPDATE analyticsCycle
             SET "leftTime" = $1
