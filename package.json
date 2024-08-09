@@ -8,15 +8,16 @@
     "server": "npm run prepare && node dist/server.js",
     "server:watch": "nodemon",
     "log_server": "npm run prepare && node dist/log_server.js",
-    "lint": "eslint './src/**/*.ts'",
-    "lint-windows": "eslint ./src/**/*.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "check": "gts check",
     "clean": "rm -rf db.sql* dist/ data-logs/ shardeum.sql*",
     "compile": "tsc -p .",
     "fix": "gts fix",
     "prepare": "npm run compile",
-    "flush": "rm -fr db.sqlite3* shardeum.sqlite* data-logs/"
+    "flush": "rm -fr db.sqlite3* shardeum.sqlite* data-logs/",
+    "lint": "eslint \"./src/**/*.ts\"",
+    "format-check": "prettier --check \"./src/**/*.ts\"",
+    "format-fix": "prettier --write \"./src/**/*.ts\""
   },
   "dependencies": {
     "@ethereumjs/block": "^5.0.0",
