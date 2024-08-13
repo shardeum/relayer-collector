@@ -6,7 +6,7 @@ import { isBlockIndexingEnabled } from '.'
 import { upsertBlocksForCycle, upsertBlocksForCycles } from './block'
 import { cleanOldReceiptsMap } from './receipt'
 import { cleanOldOriginalTxsMap } from './originalTxData'
-import { Utils as StringUtils } from "@shardus/types"
+import { Utils as StringUtils } from '@shardus/types'
 
 export let Collection: unknown
 
@@ -102,7 +102,8 @@ export async function queryLatestCycleRecords(count: number): Promise<Cycle[]> {
     const cycleRecords: DbCycle[] = await db.all(sql)
     if (cycleRecords.length > 0) {
       cycleRecords.forEach((cycleRecord: DbCycle) => {
-        if (cycleRecord.cycleRecord) cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
+        if (cycleRecord.cycleRecord)
+          cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
       })
     }
     if (config.verbose) console.log('cycle latest', cycleRecords)
@@ -120,7 +121,8 @@ export async function queryCycleRecordsBetween(start: number, end: number): Prom
     const cycles: DbCycle[] = await db.all(sql, [start, end])
     if (cycles.length > 0) {
       cycles.forEach((cycleRecord: DbCycle) => {
-        if (cycleRecord.cycleRecord) cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
+        if (cycleRecord.cycleRecord)
+          cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
       })
     }
     if (config.verbose) console.log('cycle between', cycles)
@@ -136,7 +138,8 @@ export async function queryCycleByMarker(marker: string): Promise<Cycle | null> 
     const sql = `SELECT * FROM cycles WHERE cycleMarker=? LIMIT 1`
     const cycleRecord: DbCycle = await db.get(sql, [marker])
     if (cycleRecord) {
-      if (cycleRecord.cycleRecord) cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
+      if (cycleRecord.cycleRecord)
+        cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
     }
     if (config.verbose) console.log('cycle marker', cycleRecord)
     return cycleRecord as unknown as Cycle
@@ -152,7 +155,8 @@ export async function queryCycleByCounter(counter: number): Promise<Cycle | null
     const sql = `SELECT * FROM cycles WHERE counter=? LIMIT 1`
     const cycleRecord: DbCycle = await db.get(sql, [counter])
     if (cycleRecord) {
-      if (cycleRecord.cycleRecord) cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
+      if (cycleRecord.cycleRecord)
+        cycleRecord.cycleRecord = StringUtils.safeJsonParse(cycleRecord.cycleRecord)
     }
     if (config.verbose) console.log('cycle counter', cycleRecord)
     return cycleRecord as unknown as Cycle

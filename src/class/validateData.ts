@@ -19,7 +19,7 @@ export interface Data {
   }
 }
 
-export async function validateData(data: Data): Promise<void> {
+export async function validateData(data: Data): Promise<boolean> {
   let err = utils.validateTypes(data, {
     sign: 'o',
     receipt: 'o?',
@@ -28,28 +28,29 @@ export async function validateData(data: Data): Promise<void> {
   })
   if (err) {
     console.error('Data received from distributor failed validation', err)
-    return
+    return false
   }
   err = utils.validateTypes(data.sign, { owner: 's', sig: 's' })
   if (err) {
-    return
+    return false
   }
   if (data.sign.owner !== CONFIG.distributorInfo.publicKey) {
     console.error('Data received from distributor has invalid key')
-    return
+    return false
   }
   if (!crypto.verifyObj(data)) {
     console.error('Data received from distributor has invalid signature')
-    return
+    return false
   }
   if (!data.receipt && !data.cycle && !data.originalTx) {
     console.error('Data received from distributor is invalid', data)
-    return
+    return false
   }
 
   if (data.receipt) {
     ReceiptLogWriter.writeToLog(`${StringUtils.safeStringify(data.receipt)}\n`)
     await processReceiptData([data.receipt])
+    return true
   }
   if (data.cycle) {
     CycleLogWriter.writeToLog(`${StringUtils.safeStringify(data.cycle)}\n`)
@@ -59,9 +60,12 @@ export async function validateData(data: Data): Promise<void> {
       data.cycle.counter + 1,
       data.cycle.cycleRecord.start + CONFIG.blockIndexing.cycleDurationInSeconds
     )
+    return true
   }
   if (data.originalTx) {
     OriginalTxDataLogWriter.writeToLog(`${StringUtils.safeStringify(data.originalTx)}\n`)
     await processOriginalTxData([data.originalTx])
+    return true
   }
+  return false
 }

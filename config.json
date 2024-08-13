@@ -7,5 +7,6 @@
   "collectorInfo": {
     "publicKey": "ffdb37f5b336bcdd8d4fc5b8919aaf5c0230fb0341de7752a986cd7b255896cc"
   },
-  "dataLogWrite": true
+  "dataLogWrite": true,
+  "collectorMode": "MQ"
 }

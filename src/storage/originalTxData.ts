@@ -59,6 +59,7 @@ export async function bulkInsertOriginalTxsData(
   } catch (e) {
     console.log(e)
     console.log(`Unable to bulk insert ${tableName}`, originalTxsData.length)
+    throw e // check with Achal/Jai
   }
 }
 
