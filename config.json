@@ -5,8 +5,7 @@
     "publicKey": "758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3"
   },
   "collectorInfo": {
-    "publicKey": "ffdb37f5b336bcdd8d4fc5b8919aaf5c0230fb0341de7752a986cd7b255896cc",
-    "secretKey": "928faa899b61a15df6c532259552b9ad1cfb58dabcfef1fbd702eb561d3ad5e1ffdb37f5b336bcdd8d4fc5b8919aaf5c0230fb0341de7752a986cd7b255896cc"
+    "publicKey": "ffdb37f5b336bcdd8d4fc5b8919aaf5c0230fb0341de7752a986cd7b255896cc"
   },
   "dataLogWrite": true,
   "collectorMode": "WS"
