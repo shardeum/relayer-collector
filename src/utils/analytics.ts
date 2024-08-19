@@ -202,7 +202,6 @@ export const transformCycle = async (cycle: Cycle) => {
       }
     }
   }
-
 }
 
 
@@ -225,7 +224,7 @@ export const transformTransaction = (tx: Transaction) => {
   return {
     txId: tx.txId,
     cycle: tx.cycle,
-    timestamp: tx.timestamp,
+    timestamp: (new Date(tx.timestamp)).toISOString(),
     blockNumber: tx.blockNumber,
     blockHash: tx.blockHash,
     txFrom: tx.txFrom,
