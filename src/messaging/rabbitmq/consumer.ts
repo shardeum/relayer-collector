@@ -34,12 +34,14 @@ export default class RMQConsumer {
       console.log(`[Consumer ${this.name}]: Started listening to queue: ${this.queue}`)
       this.channel.consume(this.queue, async (msg) => {
         if (msg) {
-          console.log(`[Consumer ${this.name}]: Received message: ${msg.fields.exchange}`)
+          console.log(`[Consumer ${this.name}]: Received message`)
           try {
             const success = await this.processFn(msg.content.toString())
             if (success === true) {
-              this.channel!.ack(msg)
+              this.channel.ack(msg)
               console.log(`[Consumer ${this.name}]: Successfully processed message`)
+            } else {
+              this.channel.nack(msg, false, true)
             }
           } catch (e) {
             console.error(
@@ -47,7 +49,7 @@ export default class RMQConsumer {
                 this.name
               }]: Error while processing message: ${e}\nMessage: ${msg.content.toString()}`
             )
-            this.channel!.nack(msg, false, true)
+            this.channel.nack(msg, false, true)
           }
         }
       })

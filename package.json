@@ -2,13 +2,13 @@
   "name": "collector",
   "version": "1.0.0",
   "private": true,
-  "main": "dist/collector.js",
+  "main": "dist/src/collector.js",
   "scripts": {
-    "collector": "npm run prepare && node dist/collector.js",
-    "server": "npm run prepare && node dist/server.js",
+    "collector": "npm run prepare && node dist/src/collector.js",
+    "server": "npm run prepare && node dist/src/server.js",
     "server:watch": "nodemon",
-    "log_server": "npm run prepare && node dist/log_server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "log_server": "npm run prepare && node dist/src/log_server.js",
+    "test": "npm run prepare && jest",
     "check": "gts check",
     "clean": "rm -rf db.sql* dist/ data-logs/ shardeum.sql*",
     "compile": "tsc -p .",
@@ -67,6 +67,7 @@
   "devDependencies": {
     "@types/amqplib": "^0.10.5",
     "@types/fastify-cors": "2.1.0",
+    "@types/jest": "29.5.12",
     "@types/lodash": "4.14.191",
     "@types/node": "18.16.1",
     "@types/node-cron": "3.0.7",
@@ -86,9 +87,11 @@
     "eslint-plugin-security": "1.7.1",
     "eslint-plugin-xss": "0.1.12",
     "gts": "3.1.1",
+    "jest": "29.7.0",
     "nodemon": "^2.0.22",
     "pm2": "^5.3.0",
     "prettier": "2.8.1",
+    "ts-jest": "29.2.4",
     "typescript": "4.9.4"
   },
   "overrides": {

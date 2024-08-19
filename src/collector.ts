@@ -98,6 +98,7 @@ const rmqTransactionsConsumer = new RMQTransactionsConsumer()
 const rmqReceiptsConsumer = new RMQReceiptsConsumer()
 
 export const startServer = async (): Promise<void> => {
+  console.log(`Collector Mode: ${CONFIG.collectorMode}`)
   overrideDefaultConfig(env, args)
   // Set crypto hash keys from config
   Crypto.setCryptoHashKey(CONFIG.hashKey)
