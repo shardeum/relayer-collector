@@ -120,7 +120,7 @@ export async function updateAccount(_accountId: string, account: Partial<Account
       const sql = `UPDATE accounts SET cycle = $1, timestamp = $2, account = $3, hash = $4 WHERE accountId = $5 `
       await pgDb.run(sql, [
         account.cycle,
-        account.timestamp,
+        (new Date(account.timestamp)).toISOString(),
         account.account && StringUtils.safeStringify(account.account),
         account.hash,
         account.accountId
