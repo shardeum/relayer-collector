@@ -16,11 +16,20 @@ export const initializeDB = async (): Promise<void> => {
     await pgDb.init({
       enableShardeumIndexer: config.enableShardeumIndexer
     })
+
+    await pgDb.runCreate(
+      'CREATE TABLE if not exists metadata ("key" TEXT NOT NULL UNIQUE PRIMARY KEY, "value" TEXT)'
+    )
+
+    await pgDb.runCreate(
+      `INSERT INTO metadata ("key", "value") VALUES ('cycleCounter', '0') ON CONFLICT("key") DO NOTHING;`
+    )
+
     await pgDb.runCreate(
       'CREATE TABLE if not exists cycles ("cycleMarker" TEXT NOT NULL UNIQUE PRIMARY KEY, "counter" BIGINT NOT NULL, "cycleRecord" JSONB NOT NULL)'
     )
     await pgDb.runCreate(
-      'CREATE TABLE if not exists analyticsCycleRecords ("eventName" TEXT NOT NULL, "cycleMarker" TEXT NOT NULL, counter BIGINT, "timestampEpoch" BIGINT, "publicKey" TEXT, id TEXT, "externalIp" TEXT, "externalPort" BIGINT, "version" TEXT, PRIMARY KEY ("eventName", "publicKey", id, "cycleMarker"))'
+      'CREATE TABLE if not exists analyticsCycle ("nominator" TEXT, "publicKey" TEXT, "nodeId" TEXT, "joinedTime" BIGINT, "leftTime" BIGINT, "activeStartCycle" BIGINT, "activeEndCycle" BIGINT)'
     )
     await pgDb.runCreate('CREATE INDEX if not exists cycles_idx ON cycles ("counter" DESC)')
     await pgDb.runCreate(
@@ -50,7 +59,7 @@ export const initializeDB = async (): Promise<void> => {
     //   'CREATE TABLE if not exists transactions ("txId" TEXT NOT NULL, "cycle" BIGINT NOT NULL, "timestamp" BIGINT NOT NULL, "blockNumber" BIGINT NOT NULL, "blockHash" TEXT NOT NULL, "wrappedEVMAccount" JSONB NOT NULL, "txFrom" TEXT NOT NULL, "txTo" TEXT NOT NULL, "nominee" TEXT, "txHash" TEXT NOT NULL, "transactionType" INTEGER NOT NULL, "originalTxData" JSONB, PRIMARY KEY ("txId", "txHash"))'
     // )
 
-    await pgDb.runCreate('CREATE TABLE if not exists transactions ("txId" TEXT NOT NULL, "cycle" BIGINT NOT NULL, "timestamp" BIGINT NOT NULL, "blockNumber" BIGINT NOT NULL, "blockHash" TEXT NOT NULL, "txFrom" TEXT NOT NULL, "txTo" TEXT NOT NULL, "nominee" TEXT, "txHash" TEXT NOT NULL, "transactionType" INTEGER NOT NULL, "contractAddress" TEXT, "data" TEXT, "from" VARCHAR(64), "nonce" TEXT, "status" INTEGER, "to" TEXT, "transactionHash" TEXT, "value" TEXT, "isInternalTx" BOOLEAN, "internalTx" JSONB, "accountType" INTEGER, "amountSpent" TEXT, "ethAddress" TEXT, "hash" TEXT, "penalty" TEXT, "reward" TEXT, "stake" TEXT, "totalUnstakeAmount" TEXT, "totalStakeAmount" TEXT, "value_decimal" TEXT, "amountSpent_decimal" TEXT, "version" TEXT, "wrappedEVMAccount" JSONB NOT NULL, "originalTxData" JSONB, PRIMARY KEY ("txId", "txHash"))')
+    await pgDb.runCreate('CREATE TABLE if not exists transactions ("txId" TEXT NOT NULL, "cycle" BIGINT NOT NULL, "timestamp" BIGINT NOT NULL, "blockNumber" BIGINT NOT NULL, "blockHash" TEXT NOT NULL, "txFrom" TEXT NOT NULL, "txTo" TEXT NOT NULL, "nominee" TEXT, "txHash" TEXT NOT NULL, "transactionType" INTEGER NOT NULL, "contractAddress" TEXT, "data" TEXT, "from" VARCHAR(64), "nonce" TEXT, "status" INTEGER, "to" TEXT, "transactionHash" TEXT, "value" TEXT, "isInternalTx" BOOLEAN, "internalTx" JSONB, "accountType" INTEGER, "amountSpent" TEXT, "ethAddress" TEXT, "hash" TEXT, "penalty" TEXT, "reward" TEXT, "stake" TEXT, "totalUnstakeAmount" TEXT, "totalStakeAmount" TEXT, "value_decimal" TEXT, "amountSpent_decimal" TEXT, "version" TEXT, "wrappedEVMAccount" JSONB NOT NULL, "originalTxData" JSONB, "rewardAmount" TEXT, "penaltyAmount" TEXT, "violationType" INTEGER, "internalTXType" INTEGER, PRIMARY KEY ("txId", "txHash"))')
 
     await pgDb.runCreate('CREATE INDEX if not exists transactions_hash_id ON transactions ("txHash", "txId")')
     await pgDb.runCreate('CREATE INDEX if not exists transactions_txType ON transactions ("transactionType")')

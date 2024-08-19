@@ -8,7 +8,7 @@ import { upsertBlocksForCycle, upsertBlocksForCycles } from './block'
 import { cleanOldReceiptsMap } from './receipt'
 import { cleanOldOriginalTxsMap } from './originalTxData'
 import { Utils as StringUtils } from "@shardus/types"
-import { CycleRecordRow, transformCycleRecords } from '../utils/analytics'
+import { CycleRecordRow, transformCycle } from '../utils/analytics'
 
 export let Collection: unknown
 
@@ -22,29 +22,31 @@ export function isCycle(obj: Cycle): obj is Cycle {
   return (obj as Cycle).cycleRecord !== undefined && (obj as Cycle).cycleMarker !== undefined
 }
 
-const flatten = (arr: unknown[]) => {
-  return [].concat.apply([], arr)
-}
+// const flatten = (arr: unknown[]) => {
+//   return [].concat.apply([], arr)
+// }
 
-async function bulkInsertAnalyticsCycleRecords(cycleRecords: CycleRecordRow[]) {
-  if (cycleRecords.length <= 0) return
+let cycleToProcess = -1
 
-  for (let index = 0; index < cycleRecords.length; index++) {
-    const cycleRecord = cycleRecords[index];
+async function updateCycleAnalytics() {
+  if (cycleToProcess == -1) {
+    const cycleStr = await pgDb.all(`select "value" from metadata where key='cycleCounter'`)
+    cycleToProcess = Number(cycleStr[0]['value'])
 
-    const fields = Object.keys(cycleRecord).join(', ')
-    const values = extractValues(cycleRecord)
-    const placeholders = Object.keys(cycleRecord)
-      .map((_, i) => `$${i + 1}`)
-      .join(', ')
-
-    let sql = `INSERT INTO analyticsCycleRecords (${fields})
-      VALUES (${placeholders})
-      ON CONFLICT("eventName", "publicKey", id, "cycleMarker")
-      DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
-    `
-
-    await pgDb.run(sql, values)
+    console.log({ cycleStr, cycleToProcess })
+  }
+  while (true) {
+    console.log(`Trying to process cycle: ${cycleToProcess}`)
+    const cycle = await queryCycleByCounter(cycleToProcess)
+    if (cycle) {
+      console.log(`Processing cycle: ${cycleToProcess}`)
+      await transformCycle(cycle)
+      cycleToProcess += 1
+      await pgDb.run(`UPDATE metadata SET "value"=$1 where "key"='cycleCounter'`, [cycleToProcess])
+    } else {
+      console.log(`Couldn't process cycle: ${cycleToProcess}`)
+      break
+    }
   }
 }
 
@@ -63,7 +65,8 @@ export async function insertCycle(cycle: Cycle): Promise<void> {
       `
       await pgDb.run(sql, values)
 
-      await bulkInsertAnalyticsCycleRecords(transformCycleRecords(cycle))
+      // await transformCycle(cycle)
+      await updateCycleAnalytics()
     } else {
       const placeholders = Object.keys(cycle).fill('?').join(', ')
       const sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
@@ -100,7 +103,8 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
 
       await pgDb.run(sql, values)
 
-      await bulkInsertAnalyticsCycleRecords(flatten(cycles.map((cycle) => transformCycleRecords(cycle))))
+      // cycles.map(async (cycle) => await transformCycle(cycle))
+      await updateCycleAnalytics()
     } else {
 
       const placeholders = Object.keys(cycles[0]).fill('?').join(', ')
