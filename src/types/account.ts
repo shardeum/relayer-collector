@@ -22,7 +22,7 @@ type hexNumber = {
 export interface Account {
   accountId: string
   cycle: number
-  timestamp: number
+  timestamp: number | string
   ethAddress: string
   account: WrappedEVMAccount
   hash: string

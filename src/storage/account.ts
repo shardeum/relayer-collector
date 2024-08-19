@@ -39,7 +39,7 @@ const transformAccount = (account: Account) => {
     }
   }
 
-  const newAccount = { ...account, balance: BigInt(0), nonce: BigInt(0) } as Account & { balance: bigint; nonce: bigint }
+  const newAccount = { ...account, timestamp: (new Date(account.timestamp)).toISOString(), balance: BigInt(0), nonce: BigInt(0) } as Account & { balance: bigint; nonce: bigint }
   const balance = BigInt(`0x${account.account.account.balance}`)
   const nonce = BigInt(`0x${account.account.account.nonce}`)
 
@@ -267,13 +267,13 @@ export async function queryAccounts(
   try {
     if (type || type === AccountSearchType.All) {
       if (type === AccountSearchType.All) {
-        const sql = `SELECT *${config.postgresEnabled ? ', account::TEXT, contractInfo::TEXT' : ''} FROM accounts ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        const sql = `SELECT *${config.postgresEnabled ? ', account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp"' : ''} FROM accounts ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
         accounts = config.postgresEnabled
           ? await pgDb.all(sql)
           : await db.all(sql)
       } else if (type === AccountSearchType.CA) {
         const sql = config.postgresEnabled
-          ? `SELECT *, account::TEXT, contractInfo::TEXT FROM accounts WHERE accountType=$1 AND contractType IS NOT NULL ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE accountType=$1 AND contractType IS NOT NULL ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
           : `SELECT * FROM accounts WHERE accountType=? AND contractType IS NOT NULL ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
         accounts = config.postgresEnabled
           ? await pgDb.all(sql, [AccountType.Account])
@@ -293,7 +293,7 @@ export async function queryAccounts(
                 ? ContractType.ERC_721
                 : ContractType.ERC_1155
         const sql = config.postgresEnabled
-          ? `SELECT *, account::TEXT, contractInfo::TEXT FROM accounts WHERE accountType=$1 AND contractType=$2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE accountType=$1 AND contractType=$2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
           : `SELECT * FROM accounts WHERE accountType=? AND contractType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
         accounts = config.postgresEnabled
           ? await pgDb.all(sql, [AccountType.Account, type])
@@ -301,7 +301,7 @@ export async function queryAccounts(
       }
     } else {
       const sql = config.postgresEnabled
-        ? `SELECT *, account::TEXT, contractInfo::TEXT FROM accounts WHERE accountType=$1 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE accountType=$1 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
         : `SELECT * FROM accounts WHERE accountType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
       accounts = config.postgresEnabled
         ? await pgDb.all(sql, [AccountType.Account])
@@ -321,7 +321,7 @@ export async function queryAccounts(
 export async function queryAccountByAccountId(accountId: string): Promise<Account | null> {
   try {
     const sql = config.postgresEnabled
-      ? `SELECT *, account::TEXT, contractInfo::TEXT FROM accounts WHERE accountId=$1`
+      ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE accountId=$1`
       : `SELECT * FROM accounts WHERE accountId=?`
     const account: DbAccount = config.postgresEnabled
       ? await pgDb.get(sql, [accountId])
@@ -343,7 +343,7 @@ export async function queryAccountByAddress(
 ): Promise<Account | null> {
   try {
     const sql = config.postgresEnabled
-      ? `SELECT *, account::TEXT, contractInfo::TEXT FROM accounts WHERE accountType=$1 AND ethAddress=$2 ORDER BY accountType ASC LIMIT 1`
+      ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE accountType=$1 AND ethAddress=$2 ORDER BY accountType ASC LIMIT 1`
       : `SELECT * FROM accounts WHERE accountType=? AND ethAddress=? ORDER BY accountType ASC LIMIT 1`
 
     const account: DbAccount = config.postgresEnabled
@@ -367,7 +367,7 @@ export async function queryAccountCountBetweenCycles(
   let accounts: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
     const sql = config.postgresEnabled
-      ? `SELECT COUNT(*) as "COUNT(*)" FROM accounts WHERE cycle BETWEEN $1 AND $2`
+      ? `SELECT COUNT(*) as "COUNT(*)", (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE cycle BETWEEN $1 AND $2`
       : `SELECT COUNT(*) FROM accounts WHERE cycle BETWEEN ? AND ?`
 
     accounts = config.postgresEnabled
@@ -391,7 +391,7 @@ export async function queryAccountsBetweenCycles(
   let accounts: DbAccount[] = []
   try {
     const sql = config.postgresEnabled
-      ? `SELECT *, account::TEXT, contractInfo::TEXT FROM accounts WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+      ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
       : `SELECT * FROM accounts WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
     accounts = config.postgresEnabled
       ? await pgDb.all(sql, [startCycleNumber, endCycleNumber])

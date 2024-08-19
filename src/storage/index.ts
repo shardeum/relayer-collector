@@ -33,7 +33,7 @@ export const initializeDB = async (): Promise<void> => {
     )
     await pgDb.runCreate('CREATE INDEX if not exists cycles_idx ON cycles ("counter" DESC)')
     await pgDb.runCreate(
-      'CREATE TABLE if not exists accounts ("accountId" TEXT NOT NULL UNIQUE PRIMARY KEY, "cycle" BIGINT NOT NULL, "timestamp" BIGINT NOT NULL, "ethAddress" TEXT NOT NULL, "account" JSONB NOT NULL, "accountType" INTEGER NOT NULL, "hash" TEXT NOT NULL, "isGlobal" BOOLEAN NOT NULL, "contractInfo" JSONB, "contractType" INTEGER, "balance" NUMERIC, "nonce" NUMERIC)'
+      'CREATE TABLE if not exists accounts ("accountId" TEXT NOT NULL UNIQUE PRIMARY KEY, "cycle" BIGINT NOT NULL, "timestamp" TIMESTAMPTZ NOT NULL, "ethAddress" TEXT NOT NULL, "account" JSONB NOT NULL, "accountType" INTEGER NOT NULL, "hash" TEXT NOT NULL, "isGlobal" BOOLEAN NOT NULL, "contractInfo" JSONB, "contractType" INTEGER, "balance" NUMERIC, "nonce" NUMERIC)'
     )
     if (isShardeumIndexerEnabled()) {
       console.log('ShardeumIndexer: Enabled, creating tables and indexes for ShardeumIndexer on PG')
