@@ -64,6 +64,7 @@ export const initializeDB = async (): Promise<void> => {
     await pgDb.runCreate(
       'CREATE INDEX if not exists transactions_blockNumber ON transactions ("blockNumber")'
     )
+    await pgDb.runCreate('CREATE INDEX if not exists transactions_timestamp ON transactions ("timestamp")')
     await pgDb.runCreate(
       'CREATE TABLE if not exists tokenTxs ("txId" TEXT NOT NULL, "txHash" TEXT NOT NULL, "cycle" BIGINT NOT NULL, "timestamp" BIGINT NOT NULL, "contractAddress" TEXT NOT NULL, "contractInfo" JSONB, "tokenFrom" TEXT NOT NULL, "tokenTo" TEXT NOT NULL, "tokenValue" TEXT NOT NULL, "tokenType" INTEGER NOT NULL, "tokenEvent" TEXT NOT NULL, "tokenOperator" TEXT, "transactionFee" TEXT NOT NULL, FOREIGN KEY ("txId", "txHash") REFERENCES transactions("txId", "txHash"))'
     )
