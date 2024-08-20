@@ -8,7 +8,7 @@ export async function insertAccountEntry(account: Account): Promise<void> {
   try {
     const accountEntry: AccountEntry = {
       accountId: account.accountId,
-      timestamp: account.timestamp,
+      timestamp: account.timestamp as number,
       data: account.account,
     }
     const fields = Object.keys(accountEntry).join(', ')
@@ -43,7 +43,7 @@ export async function bulkInsertAccountEntries(accounts: Account[]): Promise<voi
     for (const account of accounts) {
       const accountEntry: AccountEntry = {
         accountId: account.accountId,
-        timestamp: account.timestamp,
+        timestamp: account.timestamp as number,
         data: account.account,
       }
       accountEntries.push(accountEntry)

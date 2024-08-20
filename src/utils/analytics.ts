@@ -52,6 +52,7 @@ export const transformCycle = async (cycle: Cycle) => {
     cycle.cycleRecord = safeJsonParse(cycle.cycleRecord)
   }
 
+  const cycleRecordStartISOString = (new Date(cycle.cycleRecord.start * 1000)).toISOString()
   if (cycle.cycleRecord.mode == "shutdown") {
     let sql = `UPDATE analyticsCycle
       SET
@@ -62,7 +63,7 @@ export const transformCycle = async (cycle: Cycle) => {
           "activeEndCycle" IS NULL AND
           "activeStartCycle" IS NOT NULL;
       `
-    const values = [cycle.cycleRecord.start, cycle.counter]
+    const values = [cycleRecordStartISOString, cycle.counter]
     await pgDb.run(sql, values)
 
 
@@ -75,7 +76,7 @@ export const transformCycle = async (cycle: Cycle) => {
           "activeStartCycle" IS NULL;
       `
 
-    await pgDb.run(sql, [cycle.cycleRecord.start])
+    await pgDb.run(sql, [cycleRecordStartISOString])
     return
   }
 
@@ -103,7 +104,7 @@ export const transformCycle = async (cycle: Cycle) => {
 
             values.push(item?.appJoinData?.stakeCert?.nominator ?? null)
             values.push(item.nodeInfo.address)
-            values.push(cycle.cycleRecord.start)
+            values.push(cycleRecordStartISOString)
 
             await pgDb.run(sql, values)
           }
@@ -121,7 +122,7 @@ export const transformCycle = async (cycle: Cycle) => {
             const item: string = value[index];
 
             const values = []
-            values.push(cycle.cycleRecord.start)
+            values.push(cycleRecordStartISOString)
             values.push(item)
 
             await pgDb.run(sql, values)
@@ -138,7 +139,7 @@ export const transformCycle = async (cycle: Cycle) => {
             const item: string = value[index];
 
             const values = []
-            values.push(cycle.cycleRecord.start)
+            values.push(cycleRecordStartISOString)
             values.push(item)
 
             await pgDb.run(sql, values)
@@ -191,7 +192,7 @@ export const transformCycle = async (cycle: Cycle) => {
 
             const values = []
             values.push(cycle.counter)
-            values.push(cycle.cycleRecord.start)
+            values.push(cycleRecordStartISOString)
             values.push(item)
 
             await pgDb.run(sql, values)

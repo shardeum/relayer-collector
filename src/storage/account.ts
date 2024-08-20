@@ -34,6 +34,7 @@ const transformAccount = (account: Account) => {
   if (!account.account.account) {
     return {
       ...account,
+      timestamp: (new Date(account.timestamp)).toISOString(),
       balance: BigInt(0),
       nonce: BigInt(0)
     }
@@ -367,7 +368,7 @@ export async function queryAccountCountBetweenCycles(
   let accounts: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
     const sql = config.postgresEnabled
-      ? `SELECT COUNT(*) as "COUNT(*)", (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE cycle BETWEEN $1 AND $2`
+      ? `SELECT COUNT(*) as "COUNT(*)" FROM accounts WHERE cycle BETWEEN $1 AND $2`
       : `SELECT COUNT(*) FROM accounts WHERE cycle BETWEEN ? AND ?`
 
     accounts = config.postgresEnabled
