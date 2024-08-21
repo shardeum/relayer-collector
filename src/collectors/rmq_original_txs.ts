@@ -3,13 +3,13 @@ import RMQConsumer from '../messaging/rabbitmq/consumer'
 import { validateData } from '../class/validateData'
 import { Utils as StringUtils } from '@shardus/types'
 
-export default class RMQTransactionsConsumer {
+export default class RMQOriginalTxsConsumer {
   consumer: RMQConsumer
   conn: amqp.Connection
   channel: amqp.Channel
 
   constructor() {
-    const queueName = process.env.RMQ_TRANSACTIONS_QUEUE_NAME
+    const queueName = process.env.RMQ_ORIGINAL_TXS_QUEUE_NAME
     if (queueName === null || queueName === undefined || queueName.trim() === '') {
       throw new Error('[RMQTransactionsConsumer]: please provide queue name for consumer')
     }

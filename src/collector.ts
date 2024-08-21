@@ -35,7 +35,7 @@ import {
 } from './config'
 import { sleep } from './utils'
 import RMQCyclesConsumer from './collectors/rmq_cycles'
-import RMQTransactionsConsumer from './collectors/rmq_transactions'
+import RMQOriginalTxsConsumer from './collectors/rmq_original_txs'
 import RMQReceiptsConsumer from './collectors/rmq_receipts'
 
 if (process.env.PORT) {
@@ -94,7 +94,7 @@ if (config.env == envEnum.DEV) {
 }
 
 const rmqCyclesConsumer = new RMQCyclesConsumer()
-const rmqTransactionsConsumer = new RMQTransactionsConsumer()
+const rmqTransactionsConsumer = new RMQOriginalTxsConsumer()
 const rmqReceiptsConsumer = new RMQReceiptsConsumer()
 
 export const startServer = async (): Promise<void> => {
@@ -382,5 +382,5 @@ const addSigListeners = (): void => {
 startServer()
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception in Distributor: ', error)
+  console.error('Uncaught Exception in Collector: ', error)
 })

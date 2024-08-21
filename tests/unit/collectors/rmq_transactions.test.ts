@@ -1,4 +1,4 @@
-import RMQTransactionsConsumer from '../../../src/collectors/rmq_transactions'
+import RMQOriginalTxsConsumer from '../../../src/collectors/rmq_original_txs'
 import * as crypto from '@shardus/crypto-utils'
 import {
   Channel,
@@ -30,13 +30,13 @@ jest.mock('../../../src/storage/originalTxData', () => ({
 
 describe('RMQTransactionsConsumer', () => {
   const queueName = 'testQueue'
-  let transactionsConsumer: RMQTransactionsConsumer
+  let transactionsConsumer: RMQOriginalTxsConsumer
   let mockChannel: jest.Mocked<Channel>
   let mockConnection: jest.Mocked<Connection>
 
   beforeEach(() => {
-    process.env.RMQ_TRANSACTIONS_QUEUE_NAME = queueName
-    transactionsConsumer = new RMQTransactionsConsumer()
+    process.env.RMQ_ORIGINAL_TXS_QUEUE_NAME = queueName
+    transactionsConsumer = new RMQOriginalTxsConsumer()
 
     mockChannel = {
       assertQueue: jest.fn().mockResolvedValue(undefined),
@@ -61,8 +61,8 @@ describe('RMQTransactionsConsumer', () => {
   })
 
   it('[originalTxs consumer] should throw an error if queue name is not provided', () => {
-    delete process.env.RMQ_TRANSACTIONS_QUEUE_NAME
-    expect(() => new RMQTransactionsConsumer()).toThrow(
+    delete process.env.RMQ_ORIGINAL_TXS_QUEUE_NAME
+    expect(() => new RMQOriginalTxsConsumer()).toThrow(
       '[RMQTransactionsConsumer]: please provide queue name for consumer'
     )
   })
