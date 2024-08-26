@@ -15,23 +15,19 @@ const start = async (): Promise<void> => {
     const receipts = await ReceiptDB.queryReceipts(i, limit)
     let accountHistoryStateList: AccountHistoryStateDB.AccountHistoryState[] = []
     for (const receipt of receipts) {
-      const { appliedReceipt, appReceiptData, globalModification, receiptId } = receipt
+      const { signedReceipt, appReceiptData, globalModification, receiptId } = receipt
       const blockHash = appReceiptData.data?.readableReceipt?.blockHash
       if (!blockHash) {
         console.error(`Receipt ${receiptId} has no blockHash`)
         continue
       }
       const blockNumber = parseInt(appReceiptData.data?.readableReceipt?.blockNumber)
-      if (
-        globalModification === false &&
-        appliedReceipt &&
-        appliedReceipt.appliedVote.account_id.length > 0
-      ) {
-        for (let i = 0; i < appliedReceipt.appliedVote.account_id.length; i++) {
+      if (globalModification === false && signedReceipt && signedReceipt.proposal.accountIDs.length > 0) {
+        for (let i = 0; i < receipt.afterStates!.length; i++) {
           const accountHistoryState: AccountHistoryStateDB.AccountHistoryState = {
-            accountId: appliedReceipt.appliedVote.account_id[i],
-            beforeStateHash: appliedReceipt.appliedVote.account_state_hash_before[i],
-            afterStateHash: appliedReceipt.appliedVote.account_state_hash_after[i],
+            accountId: receipt.afterStates!.at(i)!.accountId,
+            beforeStateHash: receipt.beforeStates!.at(i)!.hash,
+            afterStateHash: receipt.afterStates!.at(i)!.hash,
             timestamp: receipt.timestamp,
             blockNumber,
             blockHash,
@@ -43,8 +39,8 @@ const start = async (): Promise<void> => {
         if (globalModification === true) {
           console.log(`Receipt ${receiptId} has globalModification as true`)
         }
-        if (globalModification === false && !appliedReceipt) {
-          console.error(`Receipt ${receiptId} has no appliedReceipt`)
+        if (globalModification === false && !signedReceipt) {
+          console.error(`Receipt ${receiptId} has no signedReceipt`)
         }
       }
       if (accountHistoryStateList.length >= bucketSize) {
