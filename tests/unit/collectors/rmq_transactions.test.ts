@@ -63,7 +63,7 @@ describe('RMQTransactionsConsumer', () => {
   it('[originalTxs consumer] should throw an error if queue name is not provided', () => {
     delete process.env.RMQ_ORIGINAL_TXS_QUEUE_NAME
     expect(() => new RMQOriginalTxsConsumer()).toThrow(
-      '[RMQTransactionsConsumer]: please provide queue name for consumer'
+      '[RMQOriginalTxsConsumer]: please provide queue name for consumer'
     )
   })
 

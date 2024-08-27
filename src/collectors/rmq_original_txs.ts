@@ -11,9 +11,9 @@ export default class RMQOriginalTxsConsumer {
   constructor() {
     const queueName = process.env.RMQ_ORIGINAL_TXS_QUEUE_NAME
     if (queueName === null || queueName === undefined || queueName.trim() === '') {
-      throw new Error('[RMQTransactionsConsumer]: please provide queue name for consumer')
+      throw new Error('[RMQOriginalTxsConsumer]: please provide queue name for consumer')
     }
-    this.consumer = new RMQConsumer('Transactions', queueName, 100, this.processMessage.bind(this))
+    this.consumer = new RMQConsumer('OriginalTxs', queueName, 100, this.processMessage.bind(this))
   }
 
   public async start(): Promise<void> {
@@ -30,7 +30,7 @@ export default class RMQOriginalTxsConsumer {
       console.log(`transactions#processMessage: ${success}`)
       return success
     } catch (e) {
-      console.error(`[RMQTransactionsConsumer]: Error while processing message: ${e}`)
+      console.error(`[RMQOriginalTxsConsumer]: Error while processing message: ${e}`)
       return false
     }
   }
