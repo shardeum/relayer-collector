@@ -93,10 +93,6 @@ if (config.env == envEnum.DEV) {
   }
 }
 
-const rmqCyclesConsumer = new RMQCyclesConsumer()
-const rmqTransactionsConsumer = new RMQOriginalTxsConsumer()
-const rmqReceiptsConsumer = new RMQReceiptsConsumer()
-
 export const startServer = async (): Promise<void> => {
   console.log(`Collector Mode: ${CONFIG.collectorMode}`)
   overrideDefaultConfig(env, args)
@@ -348,6 +344,10 @@ const connectToDistributor = (): void => {
 
 // start queue consumers for cycles, transactions and receipts events
 const startRMQEventsConsumers = (): void => {
+  const rmqCyclesConsumer = new RMQCyclesConsumer()
+  const rmqTransactionsConsumer = new RMQOriginalTxsConsumer()
+  const rmqReceiptsConsumer = new RMQReceiptsConsumer()
+
   rmqCyclesConsumer.start()
   rmqTransactionsConsumer.start()
   rmqReceiptsConsumer.start()
