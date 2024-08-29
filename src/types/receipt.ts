@@ -29,8 +29,9 @@ interface AccountsCopy {
 export type SignedReceipt = {
   proposal: Proposal
   proposalHash: string // Redundant, may go
-  applyTimestamp: number
   signaturePack: Signature[]
+  voteOffsets: number[]
+  sign?: Signature
 }
 /**
  * ArchiverReceipt is the full data (shardusReceipt + appReceiptData + accounts ) of a tx that is sent to the archiver
