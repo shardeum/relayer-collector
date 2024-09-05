@@ -1372,13 +1372,14 @@ export async function queryTransactionCountByTimestamp(
     values.push(beforeTimeString)
   }
   try {
+    const valuesSize: number = values.length
     if (address) {
       if (!txType) {
-        sql += `AND (txFrom=${config.postgresEnabled ? '$' + (values.length + 1) : '?'} OR txTo=${config.postgresEnabled ? '$' + (values.length + 2) : '?'} OR nominee=${config.postgresEnabled ? '$' + (values.length + 3) : '?'}) `
+        sql += `AND (txFrom=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} OR txTo=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} OR nominee=${config.postgresEnabled ? '$' + (valuesSize + 3) : '?'}) `
         values.push(address, address, address)
       } else if (txType === TransactionSearchType.AllExceptInternalTx) {
         const ty = TransactionType.InternalTxReceipt
-        sql += `AND (txFrom=${config.postgresEnabled ? '$' + (values.length + 1) : '?'} OR txTo=${config.postgresEnabled ? '$' + (values.length + 2) : '?'} OR nominee=${config.postgresEnabled ? '$' + (values.length + 3) : '?'}) AND transactionType!=${config.postgresEnabled ? '$' + (values.length + 4) : '?'} `
+        sql += `AND (txFrom=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} OR txTo=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} OR nominee=${config.postgresEnabled ? '$' + (valuesSize + 3) : '?'}) AND transactionType!=${config.postgresEnabled ? '$' + (valuesSize + 4) : '?'} `
         values.push(address, address, address, ty)
       } else if (
         txType === TransactionSearchType.Receipt ||
@@ -1397,7 +1398,7 @@ export async function queryTransactionCountByTimestamp(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        sql += `AND (txFrom=${config.postgresEnabled ? '$' + (values.length + 1) : '?'} OR txTo=${config.postgresEnabled ? '$' + (values.length + 2) : '?'} OR nominee=${config.postgresEnabled ? '$' + (values.length + 3) : '?'}) AND transactionType=${config.postgresEnabled ? '$' + (values.length + 4) : '?'} `
+        sql += `AND (txFrom=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} OR txTo=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} OR nominee=${config.postgresEnabled ? '$' + (valuesSize + 3) : '?'}) AND transactionType=${config.postgresEnabled ? '$' + (valuesSize + 4) : '?'} `
         values.push(address, address, address, ty)
       } else if (
         txType === TransactionSearchType.EVM_Internal ||
@@ -1413,21 +1414,21 @@ export async function queryTransactionCountByTimestamp(
               : txType === TransactionSearchType.ERC_721
                 ? TransactionType.ERC_721
                 : TransactionType.ERC_1155
-        sql += `AND (tokenFrom=${config.postgresEnabled ? '$' + (values.length + 1) : '?'} OR tokenTo=${config.postgresEnabled ? '$' + (values.length + 2) : '?'} OR tokenOperator=${config.postgresEnabled ? '$' + (values.length + 3) : '?'}) AND tokenType=${config.postgresEnabled ? '$' + (values.length + 4) : '?'} `
+        sql += `AND (tokenFrom=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} OR tokenTo=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} OR tokenOperator=${config.postgresEnabled ? '$' + (valuesSize + 3) : '?'}) AND tokenType=${config.postgresEnabled ? '$' + (valuesSize + 4) : '?'} `
         values.push(address, address, address, ty)
       } else if (txType === TransactionSearchType.TokenTransfer) {
         if (filterAddress) {
-          sql += `AND contractAddress=${config.postgresEnabled ? '$' + (values.length + 1) : '?'} AND (tokenFrom=${config.postgresEnabled ? '$' + (values.length + 2) : '?'} OR tokenTo=${config.postgresEnabled ? '$' + (values.length + 3) : '?'} OR tokenOperator=${config.postgresEnabled ? '$' + (values.length + 4) : '?'}) AND NOT tokenType=${config.postgresEnabled ? '$' + (values.length + 5) : '?'} `
+          sql += `AND contractAddress=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} AND (tokenFrom=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} OR tokenTo=${config.postgresEnabled ? '$' + (valuesSize + 3) : '?'} OR tokenOperator=${config.postgresEnabled ? '$' + (valuesSize + 4) : '?'}) AND NOT tokenType=${config.postgresEnabled ? '$' + (valuesSize + 5) : '?'} `
           values.push(address, filterAddress, filterAddress, filterAddress, TransactionType.EVM_Internal)
         } else {
-          sql += `AND contractAddress=${config.postgresEnabled ? '$' + (values.length + 1) : '?'} AND NOT tokenType=${config.postgresEnabled ? '$' + (values.length + 2) : '?'} `
+          sql += `AND contractAddress=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} AND NOT tokenType=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} `
           values.push(address, TransactionType.EVM_Internal)
         }
       }
     } else if (txType) {
       if (txType === TransactionSearchType.AllExceptInternalTx) {
         const ty = TransactionType.InternalTxReceipt
-        sql += `AND transactionType!=${config.postgresEnabled ? '$' + (values.length + 1) : '?'} `
+        sql += `AND transactionType!=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} `
         values.push(ty)
       } else if (
         txType === TransactionSearchType.Receipt ||
@@ -1446,7 +1447,7 @@ export async function queryTransactionCountByTimestamp(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        sql += `AND transactionType=${config.postgresEnabled ? '$' + (values.length + 1) : '?'} `
+        sql += `AND transactionType=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} `
         values.push(ty)
       } else if (
         txType === TransactionSearchType.EVM_Internal ||
@@ -1462,7 +1463,7 @@ export async function queryTransactionCountByTimestamp(
               : txType === TransactionSearchType.ERC_721
                 ? TransactionType.ERC_721
                 : TransactionType.ERC_1155
-        sql += `AND tokenType=${config.postgresEnabled ? '$' + (values.length + 1) : '?'} `
+        sql += `AND tokenType=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} `
         values.push(ty)
       }
     }
