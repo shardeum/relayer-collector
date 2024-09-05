@@ -1356,7 +1356,7 @@ export async function queryTransactionCountByTimestamp(
         ? `SELECT COUNT(*) as "COUNT(*)" FROM tokenTxs WHERE `
         : `SELECT COUNT(*) FROM tokenTxs WHERE `
   }
-  const values: unknown[] = []
+  const values: (string | number)[] = []
   if (afterTimestamp > 0) {
     const currentPlaceholder: number = values.length + 1
     sql += `timestamp>${config.postgresEnabled ? '$' + (currentPlaceholder) : '?'} `
@@ -1500,7 +1500,7 @@ export async function queryTransactionsByTimestamp(
     )
       sql = `SELECT *${config.postgresEnabled ? ', contractInfo::TEXT' : ''} FROM tokenTxs WHERE `
   }
-  const values: unknown[] = []
+  const values: (string | number)[] = []
   let sqlSuffix = ''
   if (afterTimestamp > 0) {
     const valuePlaceholder: number = values.length + 1
@@ -1640,7 +1640,7 @@ export async function queryTransactionCountByBlock(blockNumber: number, blockHas
   let sql = config.postgresEnabled
     ? `SELECT COUNT(*) as "COUNT(*)" FROM transactions WHERE transactionType IN ($1, $2, $3) `
     : `SELECT COUNT(*) FROM transactions WHERE transactionType IN (?,?,?) `
-  const values: unknown[] = [
+  const values: (string | number)[] = [
     TransactionType.Receipt,
     TransactionType.StakeReceipt,
     TransactionType.UnstakeReceipt,
@@ -1670,7 +1670,7 @@ export async function queryTransactionsByBlock(
 ): Promise<DbTransaction[]> {
   let transactions: DbTransaction[] = []
   let sql = `SELECT *${config.postgresEnabled ? ', wrappedEVMAccount::TEX, originalTxData::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp"' : ''} FROM transactions WHERE transactionType IN ${config.postgresEnabled ? '($1, $2, $3)' : '(?,?,?)'}`
-  const values: unknown[] = [
+  const values: (string | number)[] = [
     TransactionType.Receipt,
     TransactionType.StakeReceipt,
     TransactionType.UnstakeReceipt,
