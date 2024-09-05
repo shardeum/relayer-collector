@@ -1390,14 +1390,20 @@ export async function queryTransactionCountByTimestamp(
     if (address) {
       if (!txType) {
         if (config.postgresEnabled) {
-          sql += pgFormat(' `AND (txFrom=$%s OR txTo=$%s OR nominee=$%s) ` ', valuesSize + 1, valuesSize + 2, valuesSize + 3)
+          sql += pgFormat(' AND (txFrom=$%s OR txTo=$%s OR nominee=$%s)  ', valuesSize + 1, valuesSize + 2, valuesSize + 3)
         } else {
           sql += ' AND (txFrom=? OR txTo=? OR nominee=?)  '
         }
         values.push(address, address, address)
       } else if (txType === TransactionSearchType.AllExceptInternalTx) {
         const ty = TransactionType.InternalTxReceipt
-        sql += `AND (txFrom=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} OR txTo=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} OR nominee=${config.postgresEnabled ? '$' + (valuesSize + 3) : '?'}) AND transactionType!=${config.postgresEnabled ? '$' + (valuesSize + 4) : '?'} `
+
+        if (config.postgresEnabled) {
+          sql += pgFormat(' AND (txFrom=$%s OR txTo=$%s OR nominee=$%s) AND transactionType!=$%s  ', valuesSize + 1, valuesSize + 2, valuesSize + 3, valuesSize + 4)
+        } else {
+          sql += ' AND (txFrom=? OR txTo=? OR nominee=?) AND transactionType!=? '
+        }
+
         values.push(address, address, address, ty)
       } else if (
         txType === TransactionSearchType.Receipt ||
@@ -1416,7 +1422,13 @@ export async function queryTransactionCountByTimestamp(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        sql += `AND (txFrom=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} OR txTo=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} OR nominee=${config.postgresEnabled ? '$' + (valuesSize + 3) : '?'}) AND transactionType=${config.postgresEnabled ? '$' + (valuesSize + 4) : '?'} `
+
+        if (config.postgresEnabled) {
+          sql += pgFormat(' AND (txFrom=$%s OR txTo=$%s OR nominee=$%s) AND transactionType=$%s ', valuesSize + 1, valuesSize + 2, valuesSize + 3, valuesSize + 4)
+        } else {
+          sql += ' AND (txFrom=? OR txTo=? OR nominee=?) AND transactionType=? '
+        }
+
         values.push(address, address, address, ty)
       } else if (
         txType === TransactionSearchType.EVM_Internal ||
@@ -1432,14 +1444,27 @@ export async function queryTransactionCountByTimestamp(
               : txType === TransactionSearchType.ERC_721
                 ? TransactionType.ERC_721
                 : TransactionType.ERC_1155
-        sql += `AND (tokenFrom=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} OR tokenTo=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} OR tokenOperator=${config.postgresEnabled ? '$' + (valuesSize + 3) : '?'}) AND tokenType=${config.postgresEnabled ? '$' + (valuesSize + 4) : '?'} `
+
+        if (config.postgresEnabled) {
+          sql += pgFormat(' AND (tokenFrom=$%s OR tokenTo=$%s OR tokenOperator=$%s) AND tokenType=$%s ', valuesSize + 1, valuesSize + 2, valuesSize + 3, valuesSize + 4)
+        } else {
+          sql += ' AND (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND tokenType=? '
+        }
         values.push(address, address, address, ty)
       } else if (txType === TransactionSearchType.TokenTransfer) {
         if (filterAddress) {
-          sql += `AND contractAddress=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} AND (tokenFrom=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} OR tokenTo=${config.postgresEnabled ? '$' + (valuesSize + 3) : '?'} OR tokenOperator=${config.postgresEnabled ? '$' + (valuesSize + 4) : '?'}) AND NOT tokenType=${config.postgresEnabled ? '$' + (valuesSize + 5) : '?'} `
+          if (config.postgresEnabled) {
+            sql += pgFormat(' AND contractAddress=$%s AND (tokenFrom=$%s OR tokenTo=$%s OR tokenOperator=$%s) AND NOT tokenType=$%s  ', valuesSize + 1, valuesSize + 2, valuesSize + 3, valuesSize + 4, valuesSize + 5)
+          } else {
+            sql += ' AND contractAddress=? AND (tokenFrom=? OR tokenTo=? OR tokenOperator=?) AND NOT tokenType=?  '
+          }
           values.push(address, filterAddress, filterAddress, filterAddress, TransactionType.EVM_Internal)
         } else {
-          sql += `AND contractAddress=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} AND NOT tokenType=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} `
+          if (config.postgresEnabled) {
+            sql += pgFormat(' AND contractAddress=$%s AND NOT tokenType=$%s  ', valuesSize + 1, valuesSize + 2)
+          } else {
+            sql += ' AND contractAddress=? AND NOT tokenType=?  '
+          }
           values.push(address, TransactionType.EVM_Internal)
         }
       }
@@ -1465,7 +1490,11 @@ export async function queryTransactionCountByTimestamp(
                 : txType === TransactionSearchType.UnstakeReceipt
                   ? TransactionType.UnstakeReceipt
                   : TransactionType.InternalTxReceipt
-        sql += `AND transactionType=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} `
+        if (config.postgresEnabled) {
+          sql += pgFormat(' AND transactionType=$%s ', valuesSize + 1)
+        } else {
+          sql += ' AND transactionType=? '
+        }
         values.push(ty)
       } else if (
         txType === TransactionSearchType.EVM_Internal ||
@@ -1481,7 +1510,11 @@ export async function queryTransactionCountByTimestamp(
               : txType === TransactionSearchType.ERC_721
                 ? TransactionType.ERC_721
                 : TransactionType.ERC_1155
-        sql += `AND tokenType=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} `
+        if (config.postgresEnabled) {
+          sql += pgFormat(' AND tokenType=$%s ', valuesSize + 1)
+        } else {
+          sql += ' AND tokenType=? '
+        }
         values.push(ty)
       }
     }
