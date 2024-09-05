@@ -40,6 +40,9 @@ import { registerCache } from './cache/LatestBlockCache'
 import { Utils as StringUtils } from '@shardus/types'
 import { healthCheckRouter } from './routes/healthCheck'
 
+import pgFormat from "pg-format"
+
+
 if (config.env == envEnum.DEV) {
   //default debug mode keys
   //  pragma: allowlist nextline secret
@@ -1403,7 +1406,8 @@ const start = async (): Promise<void> => {
         filter.address = StringUtils.safeJsonParse(q.address)
       }
       if (typeof q.address === 'string') {
-        filter.address = [q.address]
+        const address = pgFormat('%s', q.address)
+        filter.address = [address]
       }
 
       if (isValidJson(q.topics) && Array.isArray(StringUtils.safeJsonParse(q.topics))) {
