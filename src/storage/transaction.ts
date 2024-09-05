@@ -1371,9 +1371,17 @@ export async function queryTransactionCountByTimestamp(
   if (beforeTimestamp > 0) {
     const valuePlaceholder: number = values.length + 1
     if (afterTimestamp > 0) {
-      sql += `AND timestamp<${config.postgresEnabled ? '$' + (valuePlaceholder) : '?'} `
+      if (config.postgresEnabled) {
+        sql += pgFormat(' AND timestamp<$%s ', valuePlaceholder)
+      } else {
+        sql += ' AND timestamp<? '
+      }
     } else {
-      sql += `timestamp<${config.postgresEnabled ? '$' + (valuePlaceholder) : '?'} `
+      if (config.postgresEnabled) {
+        sql += pgFormat(' timestamp<$%s ', valuePlaceholder)
+      } else {
+        sql += ' timestamp<? '
+      }
     }
     values.push(beforeTimeString)
   }
