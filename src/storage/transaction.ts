@@ -23,6 +23,8 @@ import { decodeTx, ZERO_ETH_ADDRESS } from '../class/TxDecoder'
 
 export { type Transaction } from '../types'
 
+import pgFormat from "pg-format"
+
 export const ERC20_METHOD_DIC = {
   '0xa9059cbb': 'transfer',
   '0xa978501e': 'transferFrom',
@@ -1359,7 +1361,11 @@ export async function queryTransactionCountByTimestamp(
   const values: (string | number)[] = []
   if (afterTimestamp > 0) {
     const currentPlaceholder: number = values.length + 1
-    sql += `timestamp>${config.postgresEnabled ? '$' + (currentPlaceholder) : '?'} `
+    if (config.postgresEnabled) {
+      sql += pgFormat('timestamp>$%s ', currentPlaceholder)
+    } else {
+      sql += 'timestamp>? '
+    }
     values.push(afterTimeString)
   }
   if (beforeTimestamp > 0) {
