@@ -25,8 +25,18 @@ import { DistributorSocketCloseCodes } from './types'
 import { initDataLogWriter } from './class/DataLogWriter'
 import { setupCollectorSocketServer } from './log_subscription/CollectorSocketconnection'
 // config variables
-import { config as CONFIG, DISTRIBUTOR_URL, config, envEnum, overrideDefaultConfig } from './config'
+import {
+  config as CONFIG,
+  DISTRIBUTOR_URL,
+  collectorMode,
+  config,
+  envEnum,
+  overrideDefaultConfig,
+} from './config'
 import { sleep } from './utils'
+import RMQCyclesConsumer from './collectors/rmq_cycles'
+import RMQOriginalTxsConsumer from './collectors/rmq_original_txs'
+import RMQReceiptsConsumer from './collectors/rmq_receipts'
 
 if (process.env.PORT) {
   CONFIG.port.collector = process.env.PORT
@@ -84,6 +94,7 @@ if (config.env == envEnum.DEV) {
 }
 
 export const startServer = async (): Promise<void> => {
+  console.log(`Collector Mode: ${CONFIG.collectorMode}`)
   overrideDefaultConfig(env, args)
   // Set crypto hash keys from config
   Crypto.setCryptoHashKey(CONFIG.hashKey)
@@ -190,19 +201,25 @@ export const startServer = async (): Promise<void> => {
   }
 
   if (CONFIG.dataLogWrite) await initDataLogWriter()
-  const CONNECT_TO_DISTRIBUTOR_MAX_RETRY = 10
-  let retry = 0
-  // Connect to the distributor
-  while (!connected) {
-    connectToDistributor()
-    retry++
-    await sleep(2000)
-    if (!connected && retry > CONNECT_TO_DISTRIBUTOR_MAX_RETRY) {
-      throw Error('Cannot connect to the distributor!')
-    }
-  }
+
   if (CONFIG.enableCollectorSocketServer) setupCollectorSocketServer()
   addSigListeners()
+
+  if (CONFIG.collectorMode === collectorMode.MQ) {
+    startRMQEventsConsumers()
+  } else {
+    const CONNECT_TO_DISTRIBUTOR_MAX_RETRY = 10
+    let retry = 0
+    // Connect to the distributor
+    while (!connected) {
+      connectToDistributor()
+      retry++
+      await sleep(2000)
+      if (!connected && retry > CONNECT_TO_DISTRIBUTOR_MAX_RETRY) {
+        throw Error('Cannot connect to the distributor!')
+      }
+    }
+  }
 
   // If there is already some data in the db, we can assume that the genesis accounts data has been synced already
   if (lastStoredCycleCount === 0) await downloadAndSyncGenesisAccounts() // To sync accounts data that are from genesis accounts/accounts data that the network start with
@@ -325,6 +342,33 @@ const connectToDistributor = (): void => {
   }
 }
 
+// start queue consumers for cycles, transactions and receipts events
+const startRMQEventsConsumers = (): void => {
+  const rmqCyclesConsumer = new RMQCyclesConsumer()
+  const rmqTransactionsConsumer = new RMQOriginalTxsConsumer()
+  const rmqReceiptsConsumer = new RMQReceiptsConsumer()
+
+  rmqCyclesConsumer.start()
+  rmqTransactionsConsumer.start()
+  rmqReceiptsConsumer.start()
+
+  // add signal listeners
+  process.on('SIGTERM', async () => {
+    console.log(`Initiated RabbitMQ connections cleanup`)
+    await rmqCyclesConsumer.cleanUp()
+    await rmqTransactionsConsumer.cleanUp()
+    await rmqReceiptsConsumer.cleanUp()
+    console.log(`Completed RabbitMQ connections cleanup`)
+  })
+  process.on('SIGINT', async () => {
+    console.log(`Initiated RabbitMQ connections cleanup`)
+    await rmqCyclesConsumer.cleanUp()
+    await rmqTransactionsConsumer.cleanUp()
+    await rmqReceiptsConsumer.cleanUp()
+    console.log(`Completed RabbitMQ connections cleanup`)
+  })
+}
+
 const addSigListeners = (): void => {
   process.on('SIGUSR1', async () => {
     console.log('DETECTED SIGUSR1 SIGNAL')
@@ -338,5 +382,5 @@ const addSigListeners = (): void => {
 startServer()
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception in Distributor: ', error)
+  console.error('Uncaught Exception in Collector: ', error)
 })

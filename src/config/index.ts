@@ -9,6 +9,11 @@ export const envEnum = {
   PROD: 'production',
 }
 
+export enum collectorMode {
+  WS = 'WS',
+  MQ = 'MQ',
+}
+
 export interface Config {
   env: string
   host: string
@@ -70,6 +75,7 @@ export interface Config {
     cacheUpdateIntervalInMillis: number
   }
   saveAccountHistoryState: boolean
+  collectorMode: string
 }
 
 let config: Config = {
@@ -133,6 +139,7 @@ let config: Config = {
     cacheUpdateIntervalInMillis: 5000,
   },
   saveAccountHistoryState: true,
+  collectorMode: process.env.COLLECTOR_MODE || collectorMode.WS.toString(),
 }
 
 let DISTRIBUTOR_URL = `http://${config.distributorInfo.ip}:${config.distributorInfo.port}`

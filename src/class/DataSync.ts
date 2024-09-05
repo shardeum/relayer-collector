@@ -85,7 +85,7 @@ export const queryFromDistributor = async (
 export async function compareWithOldReceiptsData(
   lastStoredReceiptCycle = 0
 ): Promise<{ success: boolean; matchedCycle: number }> {
-  const numberOfCyclesTocompare = 10
+  const numberOfCyclesTocompare = 20
   const endCycle = lastStoredReceiptCycle
   const startCycle = endCycle - numberOfCyclesTocompare > 0 ? endCycle - numberOfCyclesTocompare : 0
   let downloadedReceiptCountByCycles: { cycle: number; receipts: number }[]
@@ -122,7 +122,7 @@ export async function compareWithOldReceiptsData(
 export async function compareWithOldOriginalTxsData(
   lastStoredOriginalTxDataCycle = 0
 ): Promise<{ success: boolean; matchedCycle: number }> {
-  const numberOfCyclesTocompare = 10
+  const numberOfCyclesTocompare = 20
   const endCycle = lastStoredOriginalTxDataCycle
   const startCycle = endCycle - numberOfCyclesTocompare > 0 ? endCycle - numberOfCyclesTocompare : 0
   let downloadedOriginalTxDataCountByCycles: { cycle: number; originalTxsData: number }[]
@@ -167,7 +167,7 @@ export const compareWithOldCyclesData = async (
 ): Promise<{ success: boolean; cycle: number }> => {
   let downloadedCycles: CycleType[]
 
-  const numberOfCyclesTocompare = 10
+  const numberOfCyclesTocompare = 20
   const response = await queryFromDistributor(DataType.CYCLE, {
     start: lastCycleCounter - numberOfCyclesTocompare,
     end: lastCycleCounter - 1,

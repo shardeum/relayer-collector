@@ -89,7 +89,7 @@ export async function bulkInsertAccountHistoryStates(
 }
 
 export async function queryAccountHistoryState(
-  accountId: string,
+  _accountId: string,
   blockNumber = undefined,
   blockHash = undefined
 ): Promise<Account | null> {
@@ -97,7 +97,7 @@ export async function queryAccountHistoryState(
     let sql = config.postgresEnabled
       ? `SELECT * FROM accountHistoryState WHERE accountId=$1`
       : `SELECT * FROM accountHistoryState WHERE accountId=?`
-    const values = [accountId]
+    const values = [_accountId]
     if (blockNumber) {
       sql += config.postgresEnabled
         ? ` AND blockNumber<$2 ORDER BY blockNumber DESC LIMIT 1`
@@ -118,7 +118,7 @@ export async function queryAccountHistoryState(
         console.log('Unable to find receipt for AccountHistoryState', accountHistoryState.receiptId)
         return null
       }
-      const filterAccount = receipt.accounts.filter((account) => account.accountId === accountId)
+      const filterAccount = receipt.afterStates.filter((account) => account.accountId === _accountId)
       if (filterAccount.length === 0) {
         console.log(
           'Unable to find account in receipt for AccountHistoryState',

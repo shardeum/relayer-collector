@@ -38,6 +38,7 @@ import path from 'path'
 import fs from 'fs'
 import { registerCache } from './cache/LatestBlockCache'
 import { Utils as StringUtils } from '@shardus/types'
+import { healthCheckRouter } from './routes/healthCheck'
 
 if (config.env == envEnum.DEV) {
   //default debug mode keys
@@ -137,6 +138,7 @@ const start = async (): Promise<void> => {
     timeWindow: '1 minute',
     allowList: ['127.0.0.1', 'localhost'],
   })
+  await server.register(healthCheckRouter)
   server.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     try {
       const jsonString = typeof body === 'string' ? body : body.toString('utf8')

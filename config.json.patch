@@ -1,5 +1,5 @@
 diff --git a/config.json b/config.json
-index 77b4b4d..840e615 100644
+index 77b4b4d..e086af7 100644
 --- a/config.json
 +++ b/config.json
 @@ -5,7 +5,8 @@
@@ -12,4 +12,3 @@ index 77b4b4d..840e615 100644
    },
    "dataLogWrite": true
  }
-\ No newline at end of file

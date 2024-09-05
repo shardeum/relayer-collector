@@ -2,6 +2,37 @@ import { Signature } from '@shardus/crypto-utils'
 import { Log } from './transaction'
 import { AccountCopy } from './account'
 
+export type Proposal = {
+  applied: boolean
+  cant_preApply: boolean
+  accountIDs: string[]
+  beforeStateHashes: string[]
+  afterStateHashes: string[]
+  appReceiptDataHash: string
+  txid: string
+}
+
+export type Vote = {
+  proposalHash: string
+  sign?: Signature
+}
+
+interface AccountsCopy {
+  accountId: string
+  cycleNumber: number
+  data: any
+  timestamp: number
+  hash: string
+  isGlobal: boolean
+}
+
+export type SignedReceipt = {
+  proposal: Proposal
+  proposalHash: string // Redundant, may go
+  signaturePack: Signature[]
+  voteOffsets: number[]
+  sign?: Signature
+}
 /**
  * ArchiverReceipt is the full data (shardusReceipt + appReceiptData + accounts ) of a tx that is sent to the archiver
  */
@@ -12,10 +43,10 @@ export interface ArchiverReceipt {
     timestamp: number
   }
   cycle: number
-  beforeStateAccounts: AccountCopy[]
-  accounts: AccountCopy[]
-  appReceiptData?: any // TODO: Create type of appReceiptData
-  appliedReceipt: AppliedReceipt2
+  signedReceipt: SignedReceipt
+  afterStates?: AccountsCopy[]
+  beforeStates?: AccountsCopy[]
+  appReceiptData: any
   executionShardKey: string
   globalModification: boolean
 }
@@ -63,6 +94,7 @@ export type ConfirmOrChallengeMessage = {
 export interface Receipt extends ArchiverReceipt {
   receiptId: string
   timestamp: number
+  applyTimestamp: number
 }
 
 export interface ReadableReceipt {
