@@ -1503,15 +1503,18 @@ export async function queryTransactionsByTimestamp(
   const values: unknown[] = []
   let sqlSuffix = ''
   if (afterTimestamp > 0) {
-    sql += ` timestamp${config.postgresEnabled ? `>$${values.length + 1}` : '>?'} `
+    const valuePlaceholder: number = values.length + 1
+
+    sql += ` timestamp${config.postgresEnabled ? `>$${valuePlaceholder}` : '>?'} `
     sqlSuffix = ` ORDER BY timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     values.push(afterTimeString)
   }
   if (beforeTimestamp > 0) {
+    const valuePlaceholder: number = values.length + 1
     if (afterTimestamp > 0) {
-      sql += ` AND timestamp${config.postgresEnabled ? `<$${values.length + 1}` : '<?'} `
+      sql += ` AND timestamp${config.postgresEnabled ? `<$${valuePlaceholder}` : '<?'} `
     } else {
-      sql += ` timestamp${config.postgresEnabled ? `<$${values.length + 1}` : '<?'} `
+      sql += ` timestamp${config.postgresEnabled ? `<$${valuePlaceholder}` : '<?'} `
       sqlSuffix = ` ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${skip}`
     }
     values.push(beforeTimeString)
@@ -1519,7 +1522,9 @@ export async function queryTransactionsByTimestamp(
   try {
     if (address) {
       if (!txType || TransactionSearchType.All) {
-        sql += ` AND (txFrom${config.postgresEnabled ? `=$${values.length + 1}` : '=?'} OR txTo${config.postgresEnabled ? `=$${values.length + 2}` : '=?'} OR nominee${config.postgresEnabled ? `=$${values.length + 3}` : '=?'})`
+        const valuePlaceholder: number = values.length
+
+        sql += ` AND (txFrom${config.postgresEnabled ? `=$${valuePlaceholder + 1}` : '=?'} OR txTo${config.postgresEnabled ? `=$${valuePlaceholder + 2}` : '=?'} OR nominee${config.postgresEnabled ? `=$${valuePlaceholder + 3}` : '=?'})`
         values.push(address, address, address)
       } else if (txType === TransactionSearchType.AllExceptInternalTx) {
         const ty = TransactionType.InternalTxReceipt
