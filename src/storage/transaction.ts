@@ -1471,7 +1471,11 @@ export async function queryTransactionCountByTimestamp(
     } else if (txType) {
       if (txType === TransactionSearchType.AllExceptInternalTx) {
         const ty = TransactionType.InternalTxReceipt
-        sql += `AND transactionType!=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} `
+        if (config.postgresEnabled) {
+          sql += pgFormat(' AND transactionType!=$%s ', valuesSize + 1)
+        } else {
+          sql += ' AND transactionType!=? '
+        }
         values.push(ty)
       } else if (
         txType === TransactionSearchType.Receipt ||
