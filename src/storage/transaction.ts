@@ -1389,7 +1389,11 @@ export async function queryTransactionCountByTimestamp(
     const valuesSize: number = values.length
     if (address) {
       if (!txType) {
-        sql += `AND (txFrom=${config.postgresEnabled ? '$' + (valuesSize + 1) : '?'} OR txTo=${config.postgresEnabled ? '$' + (valuesSize + 2) : '?'} OR nominee=${config.postgresEnabled ? '$' + (valuesSize + 3) : '?'}) `
+        if (config.postgresEnabled) {
+          sql += pgFormat(' `AND (txFrom=$%s OR txTo=$%s OR nominee=$%s) ` ', valuesSize + 1, valuesSize + 2, valuesSize + 3)
+        } else {
+          sql += ' AND (txFrom=? OR txTo=? OR nominee=?)  '
+        }
         values.push(address, address, address)
       } else if (txType === TransactionSearchType.AllExceptInternalTx) {
         const ty = TransactionType.InternalTxReceipt
