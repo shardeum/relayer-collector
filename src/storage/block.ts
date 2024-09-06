@@ -1,7 +1,6 @@
 import { bigIntToHex, bytesToHex } from '@ethereumjs/util'
 import { config } from '../config'
-import * as db from './sqlite3storage'
-import * as pgDb from './pgStorage'
+import * as db from './dbStorage'
 import { Block as EthBlock } from '@ethereumjs/block'
 import { Common, Hardfork } from '@ethereumjs/common'
 import { Cycle, DbBlock } from '../types'
@@ -28,7 +27,7 @@ export async function insertBlock(block: DbBlock): Promise<void> {
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
 
-      await pgDb.run(sql, values)
+      await db.run(sql, values)
     }
     else {
 
@@ -60,7 +59,7 @@ export async function bulkInsertBlocks(blocks: DbBlock[]): Promise<void> {
 
       sql += ` ON CONFLICT("number") DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
-      await pgDb.run(sql, values)
+      await db.run(sql, values)
     } else {
       const placeholders = Object.keys(blocks[0]).fill('?').join(', ')
 
@@ -127,9 +126,7 @@ export async function queryBlockByNumber(blockNumber: number): Promise<DbBlock |
       ? 'SELECT *, readableBlock::TEXT FROM blocks WHERE number = $1'
       : 'SELECT * FROM blocks WHERE number = ?'
     const values = [blockNumber]
-    const block: DbBlock = config.postgresEnabled
-      ? await pgDb.get(sql, values)
-      : await db.get(sql, values)
+    const block: DbBlock = await db.get(sql, values)
 
     if (block && block.timestamp > Date.now() - blockQueryDelayInMillis()) {
       return null
@@ -145,9 +142,7 @@ export async function queryBlockByTag(tag: 'earliest' | 'latest'): Promise<DbBlo
   try {
     if (tag === 'earliest') {
       const sql = `SELECT *${config.postgresEnabled ? ', readableBlock::TEXT' : ''} FROM blocks WHERE number = 0`
-      const block: DbBlock = config.postgresEnabled
-        ? await pgDb.get(sql)
-        : await db.get(sql)
+      const block: DbBlock = await db.get(sql)
       return block
     }
     const block: DbBlock = await getLatestBlock()
@@ -165,9 +160,7 @@ export async function queryBlockByHash(blockHash: string): Promise<DbBlock | nul
       ? 'SELECT *, readableBlock::TEXT FROM blocks WHERE hash = $1'
       : 'SELECT * FROM blocks WHERE hash = ?'
     const values = [blockHash]
-    const block: DbBlock = config.postgresEnabled
-      ? await pgDb.get(sql, values)
-      : await db.get(sql, values)
+    const block: DbBlock = await db.get(sql, values)
 
     if (block && block.timestamp > Date.now() - blockQueryDelayInMillis()) {
       return null
@@ -250,9 +243,7 @@ export async function queryBlockCount(): Promise<number> {
   let blocks: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
     const sql = `SELECT COUNT(*) as "COUNT(*)" FROM blocks`
-    blocks = config.postgresEnabled
-      ? await pgDb.get(sql, [])
-      : await db.get(sql, [])
+    blocks = await db.get(sql, [])
   } catch (e) {
     console.log(e)
   }
@@ -264,9 +255,7 @@ export async function queryBlockCount(): Promise<number> {
 export async function queryLatestBlocks(count: number): Promise<DbBlock[]> {
   try {
     const sql = `SELECT *${config.postgresEnabled ? ', readableBlock::TEXT' : ''} FROM blocks ORDER BY number DESC LIMIT ${count}`
-    const blocks: DbBlock[] = config.postgresEnabled
-      ? await pgDb.all(sql)
-      : await db.all(sql)
+    const blocks: DbBlock[] = await db.all(sql)
     if (config.verbose) console.log('block latest', blocks)
     return blocks
   } catch (e) {

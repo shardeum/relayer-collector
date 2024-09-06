@@ -1,6 +1,5 @@
-import * as db from './sqlite3storage'
-import * as pgDb from './pgStorage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import * as db from './dbStorage'
+import { extractValues, extractValuesFromArray } from './dbStorage'
 import { config } from '../config/index'
 import {
   InternalTXType,
@@ -43,7 +42,7 @@ export async function insertOriginalTxData(
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
 
-      await pgDb.run(sql, values)
+      await db.run(sql, values)
     }
     else {
       const placeholders = Object.keys(originalTxData).fill('?').join(', ')
@@ -78,7 +77,7 @@ export async function bulkInsertOriginalTxsData(
 
       sql += ` ON CONFLICT(txId, timestamp) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
-      await pgDb.run(sql, values)
+      await db.run(sql, values)
 
     } else {
       const placeholders = Object.keys(originalTxsData[0]).fill('?').join(', ')
@@ -224,9 +223,7 @@ export async function queryOriginalTxDataCount(
         values.push(ty)
       }
     }
-    originalTxsData = config.postgresEnabled
-      ? await pgDb.get(sql, values)
-      : await db.get(sql, values)
+    originalTxsData = await db.get(sql, values)
   } catch (e) {
     console.log(e)
   }
@@ -291,17 +288,13 @@ export async function queryOriginalTxsData(
       }
     }
     sql += sqlSuffix
-    originalTxsData = config.postgresEnabled
-      ? await pgDb.all(sql, values)
-      : await db.all(sql, values)
+    originalTxsData = await db.all(sql, values)
     for (const originalTxData of originalTxsData) {
       if (txType) {
         const sql = config.postgresEnabled
           ? `SELECT *, originalTxData::TEXT FROM originalTxsData WHERE txId=$1`
           : `SELECT * FROM originalTxsData WHERE txId=?`
-        const originalTxDataById: DbOriginalTxData = config.postgresEnabled
-          ? await pgDb.get(sql, [originalTxData.txId])
-          : await db.get(sql, [originalTxData.txId])
+        const originalTxDataById: DbOriginalTxData = await db.get(sql, [originalTxData.txId])
         originalTxData.originalTxData = originalTxDataById.originalTxData
         originalTxData.sign = originalTxDataById.sign
       }
@@ -322,9 +315,7 @@ export async function queryOriginalTxDataByTxId(txId: string): Promise<OriginalT
       ? `SELECT *, originalTxData::TEXT FROM originalTxsData WHERE txId=$1`
       : `SELECT * FROM originalTxsData WHERE txId=?`
 
-    const originalTxData: DbOriginalTxData = config.postgresEnabled
-      ? await pgDb.get(sql, [txId])
-      : await db.get(sql, [txId])
+    const originalTxData: DbOriginalTxData = await db.get(sql, [txId])
     if (originalTxData) {
       if (originalTxData.originalTxData)
         originalTxData.originalTxData = StringUtils.safeJsonParse(originalTxData.originalTxData)
@@ -344,17 +335,13 @@ export async function queryOriginalTxDataByTxHash(txHash: string): Promise<Origi
       ? `SELECT * FROM originalTxsData2 WHERE txHash=$1`
       : `SELECT * FROM originalTxsData2 WHERE txHash=?`
 
-    const originalTxData: DbOriginalTxData = config.postgresEnabled
-      ? await pgDb.get(sql, [txHash])
-      : await db.get(sql, [txHash])
+    const originalTxData: DbOriginalTxData = await db.get(sql, [txHash])
     if (originalTxData) {
       const sql = config.postgresEnabled
         ? `SELECT *, originalTxData::TEXT FROM originalTxsData WHERE txId=$1`
         : `SELECT * FROM originalTxsData WHERE txId=?`
 
-      const originalTxDataById: DbOriginalTxData = config.postgresEnabled
-        ? await pgDb.get(sql, [originalTxData.txId])
-        : await db.get(sql, [originalTxData.txId])
+      const originalTxDataById: DbOriginalTxData = await db.get(sql, [originalTxData.txId])
       originalTxData.originalTxData = originalTxDataById.originalTxData
       originalTxData.sign = originalTxDataById.sign
       if (originalTxData.originalTxData)
@@ -378,9 +365,7 @@ export async function queryOriginalTxDataCountByCycles(
     const sql = config.postgresEnabled
       ? `SELECT cycle, COUNT(*) as "COUNT(*)" FROM originalTxsData GROUP BY cycle HAVING cycle BETWEEN $1 AND $2 ORDER BY cycle ASC`
       : `SELECT cycle, COUNT(*) as "COUNT(*)" FROM originalTxsData GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
-    originalTxsData = config.postgresEnabled
-      ? await pgDb.all(sql, [start, end])
-      : await db.all(sql, [start, end])
+    originalTxsData = await db.all(sql, [start, end])
   } catch (e) {
     console.log(e)
   }

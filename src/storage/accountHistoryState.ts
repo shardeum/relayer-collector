@@ -1,6 +1,5 @@
-import * as db from './sqlite3storage'
-import * as pgDb from './pgStorage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import * as db from './dbStorage'
+import { extractValues, extractValuesFromArray } from './dbStorage'
 import { config } from '../config/index'
 import { Account, AccountType } from '../types'
 import * as ReceiptDB from './receipt'
@@ -30,7 +29,7 @@ export async function insertAccountHistoryState(accountHistoryState: AccountHist
         ON CONFLICT(accountId, timestamp)
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
-      await pgDb.run(sql, values)
+      await db.run(sql, values)
     } else {
       const placeholders = Object.keys(accountHistoryState).fill('?').join(', ')
 
@@ -71,7 +70,7 @@ export async function bulkInsertAccountHistoryStates(
 
       sql += ` ON CONFLICT(accountId, timestamp) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
-      await pgDb.run(sql, values)
+      await db.run(sql, values)
     } else {
       const placeholders = Object.keys(accountHistoryStates[0]).fill('?').join(', ')
 
@@ -108,9 +107,7 @@ export async function queryAccountHistoryState(
     //   sql += `blockHash=? DESC LIMIT 1`
     //   values.push(blockHash)
     // }
-    const accountHistoryState: AccountHistoryState = config.postgresEnabled
-      ? await pgDb.get(sql, values)
-      : await db.get(sql, values)
+    const accountHistoryState: AccountHistoryState = await db.get(sql, values)
     if (accountHistoryState) {
       if (config.verbose) console.log('AccountHistoryState', accountHistoryState)
       const receipt = await ReceiptDB.queryReceiptByReceiptId(accountHistoryState.receiptId)
@@ -158,9 +155,7 @@ export async function queryAccountHistoryStateCount(): Promise<number> {
   let accountHistoryStates: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
     const sql = `SELECT COUNT(*) as "COUNT(*)" FROM accountHistoryState`
-    accountHistoryStates = config.postgresEnabled
-      ? await pgDb.get(sql, [])
-      : await db.get(sql, [])
+    accountHistoryStates = await db.get(sql, [])
   } catch (e) {
     console.log(e)
   }

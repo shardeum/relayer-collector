@@ -1,7 +1,6 @@
 /* eslint-disable no-empty */
-import * as db from './sqlite3storage'
-import * as pgDb from './pgStorage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import * as db from './dbStorage'
+import { extractValues, extractValuesFromArray } from './dbStorage'
 import { config } from '../config/index'
 import { isArray } from 'lodash'
 import { Utils as StringUtils } from '@shardus/types'
@@ -45,7 +44,7 @@ export async function insertLog(log: Log): Promise<void> {
         ON CONFLICT(_id)
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
-      await pgDb.run(sql, values)
+      await db.run(sql, values)
     }
     else {
       const placeholders = Object.keys(log).fill('?').join(', ')
@@ -81,7 +80,7 @@ export async function bulkInsertLogs(logs: Log[]): Promise<void> {
 
       sql += ` ON CONFLICT(_id) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
 
-      await pgDb.run(sql, values)
+      await db.run(sql, values)
     }
     else {
       const placeholders = Object.keys(logs[0]).fill('?').join(', ')
@@ -172,9 +171,7 @@ export async function queryLogCount(
       type
     )
     if (config.verbose) console.log(sql, inputs)
-    logs = config.postgresEnabled
-      ? await pgDb.get(sql, inputs)
-      : await db.get(sql, inputs)
+    logs = await db.get(sql, inputs)
   } catch (e) {
     console.log(e)
   }
@@ -213,9 +210,7 @@ export async function queryLogs(
     if (config.verbose) console.log(sql, inputs)
     const finalSql = sql + sqlQueryExtension
 
-    logs = config.postgresEnabled
-      ? await pgDb.all(finalSql, inputs)
-      : await db.all(finalSql, inputs)
+    logs = await db.all(finalSql, inputs)
     if (logs.length > 0) {
       logs.forEach((log: DbLog) => {
         if (log.log) (log as Log).log = StringUtils.safeJsonParse(log.log)
@@ -238,9 +233,7 @@ export async function queryLogCountBetweenCycles(
       ? `SELECT COUNT(*) as "COUNT(*)" FROM logs WHERE cycle BETWEEN $1 AND $2`
       : `SELECT COUNT(*) FROM logs WHERE cycle BETWEEN ? AND ?`
 
-    logs = config.postgresEnabled
-      ? await pgDb.get(sql, [startCycleNumber, endCycleNumber])
-      : await db.get(sql, [startCycleNumber, endCycleNumber])
+    logs = await db.get(sql, [startCycleNumber, endCycleNumber])
   } catch (e) {
     console.log(e)
   }
@@ -262,9 +255,7 @@ export async function queryLogsBetweenCycles(
     const sql = config.postgresEnabled
       ? `SELECT *, log::TEXT FROM logs WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
       : `SELECT * FROM logs WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-    logs = config.postgresEnabled
-      ? await pgDb.all(sql, [startCycleNumber, endCycleNumber])
-      : await db.all(sql, [startCycleNumber, endCycleNumber])
+    logs = await db.all(sql, [startCycleNumber, endCycleNumber])
     if (logs.length > 0) {
       logs.forEach((log: DbLog) => {
         if (log.log) (log as Log).log = StringUtils.safeJsonParse(log.log)
@@ -362,9 +353,7 @@ export async function queryLogsByFilter(logFilter: LogFilter, limit = 5000): Pro
     return sql
   }
   const sql = createSqlFromEvmLogFilter(logFilter)
-  logs = config.postgresEnabled
-    ? await pgDb.all(sql, queryParams)
-    : await db.all(sql, queryParams)
+  logs = await db.all(sql, queryParams)
   if (logs.length > 0) {
     logs.forEach((log: DbLog) => {
       if (log.log) (log as Log).log = StringUtils.safeJsonParse(log.log)

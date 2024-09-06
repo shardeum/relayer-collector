@@ -31,10 +31,6 @@ export async function init(config: { enableShardeumIndexer: boolean }): Promise<
   }
 }
 
-function getClient(dbName: DbName): Client {
-  return pgDefaultDBClient
-}
-
 export async function runCreate(createStatement: string, dbName: DbName = 'default'): Promise<void> {
   await run(createStatement, [], dbName, false)
 }
@@ -56,8 +52,7 @@ export async function run(
 ): Promise<{ rowCount: any }> {
   return new Promise((resolve, reject) => {
     if (enforceCase) sql = fixSQLCasing(sql)
-
-    getClient(dbName).query({ text: sql, values: params }).then((res) => {
+    pgDefaultDBClient.query({ text: sql, values: params }).then((res) => {
       resolve({ rowCount: res.rowCount })
     }).catch((err) => {
       console.log('Error running pg run sql: ' + sql)
@@ -76,7 +71,7 @@ export async function get<T>(
   sql = fixSQLCasing(sql)
 
   return new Promise((resolve, reject) => {
-    getClient(dbName).query({ text: sql, values: params }).then((res) => {
+    pgDefaultDBClient.query({ text: sql, values: params }).then((res) => {
       resolve(res.rows?.[0])
     }).catch((err) => {
       console.log('Error running pg run sql: ' + sql)
@@ -95,7 +90,7 @@ export async function all<T>(
   sql = fixSQLCasing(sql)
 
   return new Promise((resolve, reject) => {
-    getClient(dbName).query({ text: sql, values: params }).then((res) => {
+    pgDefaultDBClient.query({ text: sql, values: params }).then((res) => {
       resolve(res.rows)
     }).catch((err) => {
       console.log('Error running pg run sql: ' + sql)

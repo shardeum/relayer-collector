@@ -1,7 +1,6 @@
 import { config } from '../config/index'
 import { Account, AccountEntry } from '../types'
-import * as db from './sqlite3storage'
-import * as pgDb from './pgStorage'
+import * as db from './dbStorage'
 import { Utils as StringUtils } from '@shardus/types'
 
 export async function insertAccountEntry(account: Account): Promise<void> {
@@ -17,7 +16,7 @@ export async function insertAccountEntry(account: Account): Promise<void> {
       const placeholders = Object.keys(accountEntry).map((key, ind) => `\$${ind + 1}`).join(', ')
       const replacement = Object.keys(accountEntry).map((key) => `${key} = EXCLUDED.${key}`).join(', ')
       const sql = 'INSERT INTO accountsEntry (' + fields + ') VALUES (' + placeholders + ') ON CONFLICT(accountId) DO UPDATE SET ' + replacement
-      await pgDb.run(sql, values, 'shardeumIndexer')
+      await db.run(sql, values, 'shardeumIndexer')
     } else {
       const placeholders = Object.keys(accountEntry).fill('?').join(', ')
       const sql = 'INSERT OR REPLACE INTO accountsEntry (' + fields + ') VALUES (' + placeholders + ')'
@@ -65,7 +64,7 @@ export async function bulkInsertAccountEntries(accounts: Account[]): Promise<voi
       }).join(", ")
 
       sql = `${sql} ON CONFLICT(accountId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
-      await pgDb.run(sql, values, 'shardeumIndexer')
+      await db.run(sql, values, 'shardeumIndexer')
     }
     else {
       const placeholders = Object.keys(accountEntries[0]).fill('?').join(', ')
@@ -97,7 +96,7 @@ export async function updateAccountEntry(_accountId: string, account: Partial<Ac
         account.accountId
       ]
 
-      await pgDb.run(sql, values, 'shardeumIndexer')
+      await db.run(sql, values, 'shardeumIndexer')
     }
     else {
       const sql = `UPDATE accountsEntry SET timestamp = $timestamp, data = $account WHERE accountId = $accountId `
@@ -126,9 +125,7 @@ export async function queryAccountEntryCount(): Promise<number> {
   let accountEntries: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
     const sql = `SELECT COUNT(*) as "COUNT(*)" FROM accountsEntry`
-    accountEntries = config.postgresEnabled
-      ? await pgDb.get(sql, [], 'shardeumIndexer')
-      : await db.get(sql, [], 'shardeumIndexer')
+    accountEntries = await db.get(sql, [], 'shardeumIndexer')
   } catch (e) {
     console.log(e)
   }

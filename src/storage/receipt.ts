@@ -15,9 +15,8 @@ import {
   Account,
   Token,
 } from '../types'
-import * as db from './sqlite3storage'
-import * as pgDb from './pgStorage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import * as db from './dbStorage'
+import { extractValues, extractValuesFromArray } from './dbStorage'
 import { decodeTx, getContractInfo, ZERO_ETH_ADDRESS } from '../class/TxDecoder'
 import { bytesToHex } from '@ethereumjs/util'
 import { forwardReceiptData } from '../log_subscription/CollectorSocketconnection'
@@ -46,7 +45,7 @@ export async function insertReceipt(receipt: Receipt): Promise<void> {
         DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
       `
 
-      await pgDb.run(sql, values)
+      await db.run(sql, values)
     }
     else {
       const placeholders = Object.keys(receipt).fill('?').join(', ')
@@ -77,7 +76,7 @@ export async function bulkInsertReceipts(receipts: Receipt[]): Promise<void> {
 
       sql += ` ON CONFLICT(receiptId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
 
-      await pgDb.run(sql, values)
+      await db.run(sql, values)
     }
     else {
       const placeholders = Object.keys(receipts[0]).fill('?').join(', ')
@@ -391,9 +390,7 @@ export async function queryReceiptByReceiptId(receiptId: string): Promise<Receip
     const sql = config.postgresEnabled
       ? `SELECT *, tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT FROM receipts WHERE receiptId=$1`
       : `SELECT * FROM receipts WHERE receiptId=?`
-    const receipt: DbReceipt = config.postgresEnabled
-      ? await pgDb.get(sql, [receiptId])
-      : await db.get(sql, [receiptId])
+    const receipt: DbReceipt = await db.get(sql, [receiptId])
     if (receipt) deserializeDbReceipt(receipt)
     if (config.verbose) console.log('Receipt receiptId', receipt)
     return receipt as Receipt
@@ -407,9 +404,7 @@ export async function queryReceiptByReceiptId(receiptId: string): Promise<Receip
 export async function queryLatestReceipts(count: number): Promise<Receipt[]> {
   try {
     const sql = `SELECT *${config.postgresEnabled ? ', tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT' : ''} FROM receipts ORDER BY cycle DESC, timestamp DESC LIMIT ${count}`
-    const receipts: DbReceipt[] = config.postgresEnabled
-      ? await pgDb.all(sql)
-      : await db.all(sql)
+    const receipts: DbReceipt[] = await db.all(sql)
 
     receipts.forEach((receipt: DbReceipt) => deserializeDbReceipt(receipt))
 
@@ -426,9 +421,7 @@ export async function queryReceipts(skip = 0, limit = 10000): Promise<Receipt[]>
   let receipts: DbReceipt[] = []
   try {
     const sql = `SELECT *${config.postgresEnabled ? ', tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT' : ''} FROM receipts ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    const receipts: DbReceipt[] = config.postgresEnabled
-      ? await pgDb.all(sql)
-      : await db.all(sql)
+    const receipts: DbReceipt[] = await db.all(sql)
     receipts.forEach((receipt: DbReceipt) => deserializeDbReceipt(receipt))
   } catch (e) {
     console.log(e)
@@ -442,9 +435,7 @@ export async function queryReceiptCount(): Promise<number> {
   let receipts: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
     const sql = `SELECT COUNT(*) as "COUNT(*)" FROM receipts`
-    receipts = config.postgresEnabled
-      ? await pgDb.get(sql, [])
-      : await db.get(sql, [])
+    receipts = await db.get(sql, [])
   } catch (e) {
     console.log(e)
   }
@@ -462,9 +453,7 @@ export async function queryReceiptCountByCycles(
     const sql = config.postgresEnabled
       ? `SELECT cycle, COUNT(*) as "COUNT(*)" FROM receipts GROUP BY cycle HAVING cycle BETWEEN $1 AND $2 ORDER BY cycle ASC`
       : `SELECT cycle, COUNT(*) as "COUNT(*)" FROM receipts GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
-    const receipts: DbReceipt[] = config.postgresEnabled
-      ? await pgDb.all(sql, [start, end])
-      : await db.all(sql, [start, end])
+    const receipts: DbReceipt[] = await db.all(sql, [start, end])
   } catch (e) {
     console.log(e)
   }
@@ -489,9 +478,7 @@ export async function queryReceiptsBetweenCycles(
     const sql = config.postgresEnabled
       ? `SELECT *, tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT FROM receipts WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
       : `SELECT * FROM receipts WHERE cycle BETWEEN ? AND ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    const receipts: DbReceipt[] = config.postgresEnabled
-      ? await pgDb.all(sql, [start, end])
-      : await db.all(sql, [start, end])
+    const receipts: DbReceipt[] = await db.all(sql, [start, end])
     receipts.forEach((receipt: DbReceipt) => deserializeDbReceipt(receipt))
   } catch (e) {
     console.log(e)
@@ -507,9 +494,7 @@ export async function queryReceiptCountBetweenCycles(start: number, end: number)
     const sql = config.postgresEnabled
       ? `SELECT COUNT(*) as "COUNT(*)" FROM receipts WHERE cycle BETWEEN $1 AND $2`
       : `SELECT COUNT(*) FROM receipts WHERE cycle BETWEEN ? AND ?`
-    receipts = config.postgresEnabled
-      ? await pgDb.get(sql, [start, end])
-      : await db.get(sql, [start, end])
+    receipts = await db.get(sql, [start, end])
   } catch (e) {
     console.log(e)
   }

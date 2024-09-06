@@ -1,6 +1,6 @@
 import { type Transaction } from '../storage/transaction'
 import { type Cycle } from '../storage/cycle'
-import * as pgDb from '../storage/pgStorage'
+import * as db from '../storage/dbStorage'
 import { bigIntToHex } from '@ethereumjs/util'
 import BN from 'bn.js'
 import web3 from 'web3'
@@ -64,7 +64,7 @@ export const transformCycle = async (cycle: Cycle) => {
           "activeStartCycle" IS NOT NULL;
       `
     const values = [cycleRecordStartISOString, cycle.counter]
-    await pgDb.run(sql, values)
+    await db.run(sql, values)
 
 
     sql = `UPDATE analyticsCycle
@@ -76,7 +76,7 @@ export const transformCycle = async (cycle: Cycle) => {
           "activeStartCycle" IS NULL;
       `
 
-    await pgDb.run(sql, [cycleRecordStartISOString])
+    await db.run(sql, [cycleRecordStartISOString])
     return
   }
 
@@ -106,7 +106,7 @@ export const transformCycle = async (cycle: Cycle) => {
             values.push(item.nodeInfo.address)
             values.push(cycleRecordStartISOString)
 
-            await pgDb.run(sql, values)
+            await db.run(sql, values)
           }
 
           break;
@@ -125,7 +125,7 @@ export const transformCycle = async (cycle: Cycle) => {
             values.push(cycleRecordStartISOString)
             values.push(item)
 
-            await pgDb.run(sql, values)
+            await db.run(sql, values)
           }
           break;
         case "standbyRemove":
@@ -142,7 +142,7 @@ export const transformCycle = async (cycle: Cycle) => {
             values.push(cycleRecordStartISOString)
             values.push(item)
 
-            await pgDb.run(sql, values)
+            await db.run(sql, values)
           }
           break;
 
@@ -160,7 +160,7 @@ export const transformCycle = async (cycle: Cycle) => {
             values.push(item.id)
             values.push(item.publicKey)
 
-            await pgDb.run(sql, values)
+            await db.run(sql, values)
           }
           break;
 
@@ -177,7 +177,7 @@ export const transformCycle = async (cycle: Cycle) => {
             values.push(cycle.counter)
             values.push(item)
 
-            await pgDb.run(sql, values)
+            await db.run(sql, values)
           }
           break;
         case "apoptosized":
@@ -195,7 +195,7 @@ export const transformCycle = async (cycle: Cycle) => {
             values.push(cycleRecordStartISOString)
             values.push(item)
 
-            await pgDb.run(sql, values)
+            await db.run(sql, values)
           }
           break;
         default:
