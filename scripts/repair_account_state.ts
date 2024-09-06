@@ -85,7 +85,7 @@ const saveAccount = async (account: AccountCopy): Promise<void> => {
       config.processData.decodeContractInfo &&
       accountType === AccountType.Account &&
       'account' in accObj.account &&
-      bytesToHex(Uint8Array.from(Object.values(accObj.account.account.codeHash))) !== AccountDB.EOA_CodeHash
+      bytesToHex(Uint8Array.from(Object.values(accObj.account.account?.codeHash || []))) !== AccountDB.EOA_CodeHash
     ) {
       const accountExist = await AccountDB.queryAccountByAccountId(accObj.accountId)
       if (config.verbose) console.log('accountExist', accountExist)
