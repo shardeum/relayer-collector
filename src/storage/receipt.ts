@@ -79,7 +79,7 @@ export async function processReceiptData(receipts: Receipt[], saveOnlyNewData = 
     }
     let modifiedReceiptObj = {
       ...receiptObj,
-      beforeStateAccounts: config.storeReceiptBeforeStates ? receiptObj.beforeStateAccounts : [],
+      beforeStates: config.storeReceiptBeforeStates ? receiptObj.beforeStates : [],
     }
     if (saveOnlyNewData) {
       const receiptExist = await queryReceiptByReceiptId(tx.txId)
