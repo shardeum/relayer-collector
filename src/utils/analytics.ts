@@ -92,7 +92,7 @@ export const transformCycle = async (cycle: Cycle) => {
     ) {
       switch (key) {
         case "standbyAdd":
-          const fields = ["nominator", "publicKey", "joinedTime"].map((e) => `"${e}"`).join(", ")
+          const fields = ["nominator", "publicKey", "joinedTime", "nodeVersion"].map((e) => `"${e}"`).join(", ")
 
           sql = `INSERT INTO analyticsCycle (${fields})
           VALUES ($1, $2, $3)
@@ -105,6 +105,7 @@ export const transformCycle = async (cycle: Cycle) => {
             values.push(item?.appJoinData?.stakeCert?.nominator ?? null)
             values.push(item.nodeInfo.address)
             values.push(cycleRecordStartISOString)
+            values.push(item?.appJoinData?.version)
 
             await db.run(sql, values)
           }
