@@ -15,8 +15,8 @@ import {
   Account,
   Token,
 } from '../types'
-import * as db from './sqlite3storage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import * as db from './dbStorage'
+import { extractValues, extractValuesFromArray } from './dbStorage'
 import { decodeTx, getContractInfo, ZERO_ETH_ADDRESS } from '../class/TxDecoder'
 import { bytesToHex } from '@ethereumjs/util'
 import { forwardReceiptData } from '../log_subscription/CollectorSocketconnection'
@@ -34,10 +34,25 @@ export const receiptsMap: Map<string, number> = new Map()
 export async function insertReceipt(receipt: Receipt): Promise<void> {
   try {
     const fields = Object.keys(receipt).join(', ')
-    const placeholders = Object.keys(receipt).fill('?').join(', ')
     const values = extractValues(receipt)
-    const sql = 'INSERT OR REPLACE INTO receipts (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(receipt).map((_, i) => `$${i + 1}`).join(', ')
+      const sql = `
+        INSERT INTO receipts (${fields})
+        VALUES (${placeholders})
+        ON CONFLICT(receiptId)
+        DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+      `
+
+      await db.run(sql, values)
+    }
+    else {
+      const placeholders = Object.keys(receipt).fill('?').join(', ')
+      const sql = 'INSERT OR REPLACE INTO receipts (' + fields + ') VALUES (' + placeholders + ')'
+
+      await db.run(sql, values)
+    }
     if (config.verbose) console.log('Successfully inserted Receipt', receipt.receiptId)
   } catch (e) {
     console.log(e)
@@ -48,13 +63,30 @@ export async function insertReceipt(receipt: Receipt): Promise<void> {
 export async function bulkInsertReceipts(receipts: Receipt[]): Promise<void> {
   try {
     const fields = Object.keys(receipts[0]).join(', ')
-    const placeholders = Object.keys(receipts[0]).fill('?').join(', ')
     const values = extractValuesFromArray(receipts)
-    let sql = 'INSERT OR REPLACE INTO receipts (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < receipts.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+    if (config.postgresEnabled) {
+      let sql = `INSERT INTO receipts (${fields}) VALUES `;
+
+      sql += receipts.map((_, i) => {
+        const rowPlaceholders = Object.keys(receipts[0])
+          .map((_, j) => `$${i * Object.keys(receipts[0]).length + j + 1}`)
+          .join(', ')
+        return `(${rowPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT(receiptId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`;
+
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
+    else {
+      const placeholders = Object.keys(receipts[0]).fill('?').join(', ')
+
+      let sql = 'INSERT OR REPLACE INTO receipts (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < receipts.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
+    }
     console.log('Successfully bulk inserted receipts', receipts.length)
   } catch (e) {
     console.log(e)
@@ -119,7 +151,7 @@ export async function processReceiptData(receipts: Receipt[], saveOnlyNewData = 
           accountType === AccountType.Account &&
           'account' in accObj.account &&
           bytesToHex(Uint8Array.from(Object.values(accObj.account.account.codeHash))) !==
-            AccountDB.EOA_CodeHash
+          AccountDB.EOA_CodeHash
         ) {
           const accountExist = await AccountDB.queryAccountByAccountId(accObj.accountId)
           if (config.verbose) console.log('accountExist', accountExist)
@@ -188,14 +220,14 @@ export async function processReceiptData(receipts: Receipt[], saveOnlyNewData = 
         txReceipt.data.accountType === AccountType.Receipt
           ? TransactionType.Receipt
           : txReceipt.data.accountType === AccountType.NodeRewardReceipt
-          ? TransactionType.NodeRewardReceipt
-          : txReceipt.data.accountType === AccountType.StakeReceipt
-          ? TransactionType.StakeReceipt
-          : txReceipt.data.accountType === AccountType.UnstakeReceipt
-          ? TransactionType.UnstakeReceipt
-          : txReceipt.data.accountType === AccountType.InternalTxReceipt
-          ? TransactionType.InternalTxReceipt
-          : (-1 as TransactionType)
+            ? TransactionType.NodeRewardReceipt
+            : txReceipt.data.accountType === AccountType.StakeReceipt
+              ? TransactionType.StakeReceipt
+              : txReceipt.data.accountType === AccountType.UnstakeReceipt
+                ? TransactionType.UnstakeReceipt
+                : txReceipt.data.accountType === AccountType.InternalTxReceipt
+                  ? TransactionType.InternalTxReceipt
+                  : (-1 as TransactionType)
       blockHash = txReceipt.data?.readableReceipt?.blockHash
       if (!blockHash) console.error(`Transaction ${tx.txId} has no blockHash`)
       blockNumber = parseInt(txReceipt.data?.readableReceipt?.blockNumber)
@@ -359,7 +391,9 @@ export async function processReceiptData(receipts: Receipt[], saveOnlyNewData = 
 
 export async function queryReceiptByReceiptId(receiptId: string): Promise<Receipt | null> {
   try {
-    const sql = `SELECT * FROM receipts WHERE receiptId=?`
+    const sql = config.postgresEnabled
+      ? `SELECT *, tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT FROM receipts WHERE receiptId=$1`
+      : `SELECT * FROM receipts WHERE receiptId=?`
     const receipt: DbReceipt = await db.get(sql, [receiptId])
     if (receipt) deserializeDbReceipt(receipt)
     if (config.verbose) console.log('Receipt receiptId', receipt)
@@ -373,7 +407,7 @@ export async function queryReceiptByReceiptId(receiptId: string): Promise<Receip
 
 export async function queryLatestReceipts(count: number): Promise<Receipt[]> {
   try {
-    const sql = `SELECT * FROM receipts ORDER BY cycle DESC, timestamp DESC LIMIT ${count}`
+    const sql = `SELECT *${config.postgresEnabled ? ', tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT' : ''} FROM receipts ORDER BY cycle DESC, timestamp DESC LIMIT ${count}`
     const receipts: DbReceipt[] = await db.all(sql)
 
     receipts.forEach((receipt: DbReceipt) => deserializeDbReceipt(receipt))
@@ -390,8 +424,8 @@ export async function queryLatestReceipts(count: number): Promise<Receipt[]> {
 export async function queryReceipts(skip = 0, limit = 10000): Promise<Receipt[]> {
   let receipts: DbReceipt[] = []
   try {
-    const sql = `SELECT * FROM receipts ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    receipts = await db.all(sql)
+    const sql = `SELECT *${config.postgresEnabled ? ', tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT' : ''} FROM receipts ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+    const receipts: DbReceipt[] = await db.all(sql)
     receipts.forEach((receipt: DbReceipt) => deserializeDbReceipt(receipt))
   } catch (e) {
     console.log(e)
@@ -404,7 +438,7 @@ export async function queryReceipts(skip = 0, limit = 10000): Promise<Receipt[]>
 export async function queryReceiptCount(): Promise<number> {
   let receipts: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM receipts`
+    const sql = `SELECT COUNT(*) as "COUNT(*)" FROM receipts`
     receipts = await db.get(sql, [])
   } catch (e) {
     console.log(e)
@@ -420,8 +454,10 @@ export async function queryReceiptCountByCycles(
 ): Promise<{ receipts: number; cycle: number }[]> {
   let receipts: { cycle: number; 'COUNT(*)': number }[] = []
   try {
-    const sql = `SELECT cycle, COUNT(*) FROM receipts GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
-    receipts = await db.all(sql, [start, end])
+    const sql = config.postgresEnabled
+      ? `SELECT cycle, COUNT(*) as "COUNT(*)" FROM receipts GROUP BY cycle HAVING cycle BETWEEN $1 AND $2 ORDER BY cycle ASC`
+      : `SELECT cycle, COUNT(*) as "COUNT(*)" FROM receipts GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
+    const receipts: DbReceipt[] = await db.all(sql, [start, end])
   } catch (e) {
     console.log(e)
   }
@@ -443,8 +479,10 @@ export async function queryReceiptsBetweenCycles(
 ): Promise<Receipt[]> {
   let receipts: DbReceipt[] = []
   try {
-    const sql = `SELECT * FROM receipts WHERE cycle BETWEEN ? and ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    receipts = await db.all(sql, [start, end])
+    const sql = config.postgresEnabled
+      ? `SELECT *, tx::TEXT, beforeStateAccounts::TEXT, accounts::TEXT, appliedReceipt::TEXT, appReceiptData::TEXT FROM receipts WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+      : `SELECT * FROM receipts WHERE cycle BETWEEN ? AND ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+    const receipts: DbReceipt[] = await db.all(sql, [start, end])
     receipts.forEach((receipt: DbReceipt) => deserializeDbReceipt(receipt))
   } catch (e) {
     console.log(e)
@@ -457,7 +495,9 @@ export async function queryReceiptsBetweenCycles(
 export async function queryReceiptCountBetweenCycles(start: number, end: number): Promise<number> {
   let receipts: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM receipts WHERE cycle BETWEEN ? and ?`
+    const sql = config.postgresEnabled
+      ? `SELECT COUNT(*) as "COUNT(*)" FROM receipts WHERE cycle BETWEEN $1 AND $2`
+      : `SELECT COUNT(*) FROM receipts WHERE cycle BETWEEN ? AND ?`
     receipts = await db.get(sql, [start, end])
   } catch (e) {
     console.log(e)

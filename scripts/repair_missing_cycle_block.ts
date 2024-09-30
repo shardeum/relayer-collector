@@ -3,7 +3,7 @@ dotenv.config()
 
 import * as Crypto from '../src/utils/crypto'
 import * as Storage from '../src/storage'
-import * as db from '../src/storage/sqlite3storage'
+import * as db from '../src/storage/dbStorage'
 import * as CycleDB from '../src/storage/cycle'
 import * as BlockDB from '../src/storage/block'
 import { config, overrideDefaultConfig } from '../src/config'
@@ -65,7 +65,7 @@ async function checkCycleData(startCycleNumber = 0, latestCycleNumber: number): 
     const batchSize = 1000
     const cycleBatches: number[][] = []
     let end = startCycleNumber + batchSize
-    for (let start = startCycleNumber; start <= latestCycleNumber; ) {
+    for (let start = startCycleNumber; start <= latestCycleNumber;) {
       if (end > latestCycleNumber) end = latestCycleNumber
       cycleBatches.push(generateNumberArray(start, end))
       start = end + 1
@@ -104,7 +104,7 @@ async function checkBlockData(startBlockNumber = 0, latestBlockNumber: number): 
     const batchSize = 1000
     const blockBatches: number[][] = []
     let end = startBlockNumber + batchSize
-    for (let start = startBlockNumber; start <= latestBlockNumber; ) {
+    for (let start = startBlockNumber; start <= latestBlockNumber;) {
       if (end > latestBlockNumber) end = latestBlockNumber
       blockBatches.push(generateNumberArray(start, end))
       start = end + 1

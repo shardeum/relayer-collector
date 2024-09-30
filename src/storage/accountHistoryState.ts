@@ -1,5 +1,5 @@
-import * as db from './sqlite3storage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import * as db from './dbStorage'
+import { extractValues, extractValuesFromArray } from './dbStorage'
 import { config } from '../config/index'
 import { Account, AccountType } from '../types'
 import * as ReceiptDB from './receipt'
@@ -18,10 +18,24 @@ export interface AccountHistoryState {
 export async function insertAccountHistoryState(accountHistoryState: AccountHistoryState): Promise<void> {
   try {
     const fields = Object.keys(accountHistoryState).join(', ')
-    const placeholders = Object.keys(accountHistoryState).fill('?').join(', ')
     const values = extractValues(accountHistoryState)
-    const sql = 'INSERT OR REPLACE INTO accountHistoryState (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(accountHistoryState).map((_, i) => `$${i + 1}`).join(', ')
+
+      const sql = `
+        INSERT INTO accountHistoryState (${fields})
+        VALUES (${placeholders})
+        ON CONFLICT(accountId, timestamp)
+        DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+      `
+      await db.run(sql, values)
+    } else {
+      const placeholders = Object.keys(accountHistoryState).fill('?').join(', ')
+
+      const sql = 'INSERT OR REPLACE INTO accountHistoryState (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     if (config.verbose)
       console.log(
         'Successfully inserted AccountHistoryState',
@@ -43,13 +57,29 @@ export async function bulkInsertAccountHistoryStates(
 ): Promise<void> {
   try {
     const fields = Object.keys(accountHistoryStates[0]).join(', ')
-    const placeholders = Object.keys(accountHistoryStates[0]).fill('?').join(', ')
     const values = extractValuesFromArray(accountHistoryStates)
-    let sql = 'INSERT OR REPLACE INTO accountHistoryState (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < accountHistoryStates.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+    if (config.postgresEnabled) {
+      let sql = `INSERT INTO accountHistoryState (${fields}) VALUES `
+
+      sql += accountHistoryStates.map((_, i) => {
+        const currentPlaceholders = Object.keys(accountHistoryStates[0])
+          .map((_, j) => `$${i * Object.keys(accountHistoryStates[0]).length + j + 1}`)
+          .join(', ')
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT(accountId, timestamp) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+
+      await db.run(sql, values)
+    } else {
+      const placeholders = Object.keys(accountHistoryStates[0]).fill('?').join(', ')
+
+      let sql = 'INSERT OR REPLACE INTO accountHistoryState (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < accountHistoryStates.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
     console.log('Successfully bulk inserted AccountHistoryStates', accountHistoryStates.length)
   } catch (e) {
     console.log(e)
@@ -63,10 +93,14 @@ export async function queryAccountHistoryState(
   blockHash = undefined
 ): Promise<Account | null> {
   try {
-    let sql = `SELECT * FROM accountHistoryState WHERE accountId=? AND `
+    let sql = config.postgresEnabled
+      ? `SELECT * FROM accountHistoryState WHERE accountId=$1`
+      : `SELECT * FROM accountHistoryState WHERE accountId=?`
     const values = [_accountId]
     if (blockNumber) {
-      sql += `blockNumber<? ORDER BY blockNumber DESC LIMIT 1`
+      sql += config.postgresEnabled
+        ? ` AND blockNumber<$2 ORDER BY blockNumber DESC LIMIT 1`
+        : ` AND blockNumber<? ORDER BY blockNumber DESC LIMIT 1`
       values.push(blockNumber)
     }
     // if (blockHash) {
@@ -120,7 +154,7 @@ export async function queryAccountHistoryState(
 export async function queryAccountHistoryStateCount(): Promise<number> {
   let accountHistoryStates: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM accountHistoryState`
+    const sql = `SELECT COUNT(*) as "COUNT(*)" FROM accountHistoryState`
     accountHistoryStates = await db.get(sql, [])
   } catch (e) {
     console.log(e)

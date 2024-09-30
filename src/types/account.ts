@@ -14,10 +14,15 @@ export type AccountCopy = {
   isGlobal: boolean
 }
 
+type hexNumber = {
+  value: string;
+  dataType: string;
+}
+
 export interface Account {
   accountId: string
   cycle: number
-  timestamp: number
+  timestamp: number | string
   ethAddress: string
   account: WrappedEVMAccount
   hash: string
@@ -109,7 +114,7 @@ interface BaseWrappedEVMAccount extends BaseAccount {
  * from disk again, and that could be a bit tricky.
  */
 export type WrappedEVMAccount = BaseWrappedEVMAccount &
-  (WrappedDataReceipt | WrappedDataAccount | WrappedDataContractStorage | WrappedDataContractCode)
+  (WrappedDataReceipt | WrappedDataAccount | WrappedDataContractStorage | WrappedDataContractCode) & { account?: EVMAccount }
 
 /** Variant data: account */
 export interface WrappedDataAccount {
@@ -140,11 +145,11 @@ export interface WrappedDataContractCode {
 /** Variant data: receipt related */
 export interface WrappedDataReceipt {
   accountType:
-    | AccountType.Receipt
-    | AccountType.NodeRewardReceipt
-    | AccountType.StakeReceipt
-    | AccountType.UnstakeReceipt
-    | AccountType.InternalTxReceipt
+  | AccountType.Receipt
+  | AccountType.NodeRewardReceipt
+  | AccountType.StakeReceipt
+  | AccountType.UnstakeReceipt
+  | AccountType.InternalTxReceipt
 
   /** For debug tx */
   balance: string

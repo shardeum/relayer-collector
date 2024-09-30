@@ -1,5 +1,5 @@
-import * as db from './sqlite3storage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import * as db from './dbStorage'
+import { extractValues, extractValuesFromArray } from './dbStorage'
 import { config } from '../config/index'
 import {
   AccountType,
@@ -16,20 +16,59 @@ import { isShardeumIndexerEnabled } from '.'
 import { bulkInsertAccountEntries, insertAccountEntry, updateAccountEntry } from './accountEntry'
 import { Utils as StringUtils } from '@shardus/types'
 
-type DbAccount = Account & {
+export { type Account } from '../types'
+
+export type DbAccount = Account & {
   account: string
   contractInfo: string
+  balance: bigint
+  nonce: bigint
 }
 
 export const EOA_CodeHash = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
 
+
+const transformAccount = (account: Account) => {
+
+  if (!account.account.account) {
+    return {
+      ...account,
+      timestamp: (new Date(account.timestamp)).toISOString(),
+      balance: BigInt(0),
+      nonce: BigInt(0)
+    }
+  }
+
+  const newAccount = { ...account, timestamp: (new Date(account.timestamp)).toISOString(), balance: BigInt(0), nonce: BigInt(0) } as Account & { balance: bigint; nonce: bigint }
+  const balance = BigInt(`0x${account.account.account.balance}`)
+  const nonce = BigInt(`0x${account.account.account.nonce}`)
+
+  newAccount.balance = account.account.account.balance
+  newAccount.nonce = account.account.account.nonce
+
+  return newAccount
+}
+
+
 export async function insertAccount(account: Account): Promise<void> {
   try {
     const fields = Object.keys(account).join(', ')
-    const placeholders = Object.keys(account).fill('?').join(', ')
     const values = extractValues(account)
-    const sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const tAccount = transformAccount(account)
+      const fields = Object.keys(tAccount).join(', ')
+      const values = extractValues(tAccount)
+
+      const placeholders = Object.keys(tAccount).map((_key, ind) => `\$${ind + 1}`).join(', ')
+      const replacement = Object.keys(tAccount).map((key) => `${key} = EXCLUDED.${key}`).join(', ')
+      const sql = 'INSERT INTO accounts (' + fields + ') VALUES (' + placeholders + ') ON CONFLICT(accountId) DO UPDATE SET ' + replacement
+      await db.run(sql, values)
+    } else {
+      const placeholders = Object.keys(account).fill('?').join(', ')
+      const sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     if (config.verbose) console.log('Successfully inserted Account', account.ethAddress || account.accountId)
     if (isShardeumIndexerEnabled()) await insertAccountEntry(account)
   } catch (e) {
@@ -41,13 +80,32 @@ export async function insertAccount(account: Account): Promise<void> {
 export async function bulkInsertAccounts(accounts: Account[]): Promise<void> {
   try {
     const fields = Object.keys(accounts[0]).join(', ')
-    const placeholders = Object.keys(accounts[0]).fill('?').join(', ')
     const values = extractValuesFromArray(accounts)
-    let sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < accounts.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+
+    if (config.postgresEnabled) {
+      const tAccounts = accounts.map((account) => transformAccount(account))
+      const fields = Object.keys(tAccounts[0]).join(', ')
+      const values = extractValuesFromArray(tAccounts)
+
+      let sql = `INSERT INTO accounts (${fields}) VALUES `
+      sql += tAccounts.map((_, i) => {
+        const currentPlaceholders = Object.keys(tAccounts[0])
+          .map((_, j) => `$${i * Object.keys(tAccounts[0]).length + j + 1}`)
+          .join(', ')
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT(accountId) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      await db.run(sql, values)
+    } else {
+      const placeholders = Object.keys(accounts[0]).fill('?').join(', ')
+      let sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < accounts.length; i++) {
+        sql += ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
+
     console.log('Successfully bulk inserted Accounts', accounts.length)
     if (isShardeumIndexerEnabled()) await bulkInsertAccountEntries(accounts)
   } catch (e) {
@@ -58,14 +116,25 @@ export async function bulkInsertAccounts(accounts: Account[]): Promise<void> {
 
 export async function updateAccount(_accountId: string, account: Partial<Account>): Promise<void> {
   try {
-    const sql = `UPDATE accounts SET cycle = $cycle, timestamp = $timestamp, account = $account, hash = $hash WHERE accountId = $accountId `
-    await db.run(sql, {
-      $cycle: account.cycle,
-      $timestamp: account.timestamp,
-      $account: account.account && StringUtils.safeStringify(account.account),
-      $hash: account.hash,
-      $accountId: account.accountId,
-    })
+    if (config.postgresEnabled) {
+      const sql = `UPDATE accounts SET cycle = $1, timestamp = $2, account = $3, hash = $4 WHERE accountId = $5 `
+      await db.run(sql, [
+        account.cycle,
+        (new Date(account.timestamp)).toISOString(),
+        account.account && StringUtils.safeStringify(account.account),
+        account.hash,
+        account.accountId
+      ])
+    } else {
+      const sql = `UPDATE accounts SET cycle = $cycle, timestamp = $timestamp, account = $account, hash = $hash WHERE accountId = $accountId `
+      await db.run(sql, {
+        $cycle: account.cycle,
+        $timestamp: account.timestamp,
+        $account: account.account && StringUtils.safeStringify(account.account),
+        $hash: account.hash,
+        $accountId: account.accountId,
+      })
+    }
     if (config.verbose) console.log('Successfully updated Account', account.ethAddress || account.accountId)
     if (isShardeumIndexerEnabled()) await updateAccountEntry(_accountId, account)
   } catch (e) {
@@ -77,10 +146,20 @@ export async function updateAccount(_accountId: string, account: Partial<Account
 export async function insertToken(token: Token): Promise<void> {
   try {
     const fields = Object.keys(token).join(', ')
-    const placeholders = Object.keys(token).fill('?').join(', ')
     const values = extractValues(token)
-    const sql = 'INSERT OR REPLACE INTO tokens (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(token).map((_, i) => `$${i + 1}`).join(', ')
+
+      const sql = `INSERT INTO tokens (${fields}) VALUES (${placeholders}) ON CONFLICT(ethAddress, contractAddress) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+      await db.run(sql, values)
+    }
+    else {
+      const placeholders = Object.keys(token).fill('?').join(', ')
+
+      const sql = 'INSERT OR REPLACE INTO tokens (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     if (config.verbose) console.log('Successfully inserted Token', token.ethAddress)
   } catch (e) {
     console.log(e)
@@ -91,13 +170,35 @@ export async function insertToken(token: Token): Promise<void> {
 export async function bulkInsertTokens(tokens: Token[]): Promise<void> {
   try {
     const fields = Object.keys(tokens[0]).join(', ')
-    const placeholders = Object.keys(tokens[0]).fill('?').join(', ')
     const values = extractValuesFromArray(tokens)
-    let sql = 'INSERT OR REPLACE INTO tokens (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < tokens.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(tokens[0]).map((_, i) => `$${i + 1}`).join(', ')
+
+      let sql = `INSERT INTO tokens (${fields}) VALUES `
+
+      sql += tokens.map((_, i) => {
+        const currentPlaceholders = Object.keys(tokens[0])
+          .map((_, j) => `$${i * Object.keys(tokens[0]).length + j + 1}`)
+          .join(', ')
+
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+
+      sql = `${sql} ON CONFLICT(ethAddress, contractAddress) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
+    else {
+      const placeholders = Object.keys(tokens[0]).fill('?').join(', ')
+
+      let sql = 'INSERT OR REPLACE INTO tokens (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < tokens.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
+    }
     console.log('Successfully inserted Tokens', tokens.length)
   } catch (e) {
     console.log(e)
@@ -110,10 +211,12 @@ export async function queryAccountCount(type?: ContractType | AccountSearchType)
   try {
     if (type || type === AccountSearchType.All) {
       if (type === AccountSearchType.All) {
-        const sql = `SELECT COUNT(*) FROM accounts`
+        const sql = `SELECT COUNT(*) as "COUNT(*)" FROM accounts`
         accounts = await db.get(sql, [])
       } else if (type === AccountSearchType.CA) {
-        const sql = `SELECT COUNT(*) FROM accounts WHERE accountType=? AND contractType IS NOT NULL`
+        const sql = config.postgresEnabled
+          ? `SELECT COUNT(*) as "COUNT(*)" FROM accounts WHERE accountType=$1 AND contractType IS NOT NULL`
+          : `SELECT COUNT(*) FROM accounts WHERE accountType=? AND contractType IS NOT NULL`
         accounts = await db.get(sql, [AccountType.Account])
       } else if (
         type === AccountSearchType.GENERIC ||
@@ -125,15 +228,19 @@ export async function queryAccountCount(type?: ContractType | AccountSearchType)
           type === AccountSearchType.GENERIC
             ? ContractType.GENERIC
             : type === AccountSearchType.ERC_20
-            ? ContractType.ERC_20
-            : type === AccountSearchType.ERC_721
-            ? ContractType.ERC_721
-            : ContractType.ERC_1155
-        const sql = `SELECT COUNT(*) FROM accounts WHERE accountType=? AND contractType=?`
+              ? ContractType.ERC_20
+              : type === AccountSearchType.ERC_721
+                ? ContractType.ERC_721
+                : ContractType.ERC_1155
+        const sql = config.postgresEnabled
+          ? `SELECT COUNT(*) as "COUNT(*)" FROM accounts WHERE accountType=$1 AND contractType=$2`
+          : `SELECT COUNT(*) FROM accounts WHERE accountType=? AND contractType=?`
         accounts = await db.get(sql, [AccountType.Account, type])
       }
     } else {
-      const sql = `SELECT COUNT(*) FROM accounts WHERE accountType=?`
+      const sql = config.postgresEnabled
+        ? `SELECT COUNT(*) as "COUNT(*)" FROM accounts WHERE accountType=$1`
+        : `SELECT COUNT(*) FROM accounts WHERE accountType=?`
       accounts = await db.get(sql, [AccountType.Account])
     }
   } catch (e) {
@@ -152,10 +259,12 @@ export async function queryAccounts(
   try {
     if (type || type === AccountSearchType.All) {
       if (type === AccountSearchType.All) {
-        const sql = `SELECT * FROM accounts ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
-        accounts = await db.all(sql, [])
+        const sql = `SELECT *${config.postgresEnabled ? ', account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp"' : ''} FROM accounts ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        accounts = await db.all(sql)
       } else if (type === AccountSearchType.CA) {
-        const sql = `SELECT * FROM accounts WHERE accountType=? AND contractType IS NOT NULL ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        const sql = config.postgresEnabled
+          ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE accountType=$1 AND contractType IS NOT NULL ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM accounts WHERE accountType=? AND contractType IS NOT NULL ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
         accounts = await db.all(sql, [AccountType.Account])
       } else if (
         type === AccountSearchType.GENERIC ||
@@ -167,15 +276,19 @@ export async function queryAccounts(
           type === AccountSearchType.GENERIC
             ? ContractType.GENERIC
             : type === AccountSearchType.ERC_20
-            ? ContractType.ERC_20
-            : type === AccountSearchType.ERC_721
-            ? ContractType.ERC_721
-            : ContractType.ERC_1155
-        const sql = `SELECT * FROM accounts WHERE accountType=? AND contractType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+              ? ContractType.ERC_20
+              : type === AccountSearchType.ERC_721
+                ? ContractType.ERC_721
+                : ContractType.ERC_1155
+        const sql = config.postgresEnabled
+          ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE accountType=$1 AND contractType=$2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+          : `SELECT * FROM accounts WHERE accountType=? AND contractType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
         accounts = await db.all(sql, [AccountType.Account, type])
       }
     } else {
-      const sql = `SELECT * FROM accounts WHERE accountType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+      const sql = config.postgresEnabled
+        ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE accountType=$1 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+        : `SELECT * FROM accounts WHERE accountType=? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
       accounts = await db.all(sql, [AccountType.Account])
     }
     accounts.forEach((account: DbAccount) => {
@@ -191,7 +304,9 @@ export async function queryAccounts(
 
 export async function queryAccountByAccountId(accountId: string): Promise<Account | null> {
   try {
-    const sql = `SELECT * FROM accounts WHERE accountId=?`
+    const sql = config.postgresEnabled
+      ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE accountId=$1`
+      : `SELECT * FROM accounts WHERE accountId=?`
     const account: DbAccount = await db.get(sql, [accountId])
     if (account) account.account = StringUtils.safeJsonParse(account.account)
     if (account && account.contractInfo)
@@ -209,7 +324,10 @@ export async function queryAccountByAddress(
   accountType = AccountType.Account
 ): Promise<Account | null> {
   try {
-    const sql = `SELECT * FROM accounts WHERE accountType=? AND ethAddress=? ORDER BY accountType ASC LIMIT 1`
+    const sql = config.postgresEnabled
+      ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE accountType=$1 AND ethAddress=$2 ORDER BY accountType ASC LIMIT 1`
+      : `SELECT * FROM accounts WHERE accountType=? AND ethAddress=? ORDER BY accountType ASC LIMIT 1`
+
     const account: DbAccount = await db.get(sql, [accountType, address])
     if (account) account.account = StringUtils.safeJsonParse(account.account)
     if (account && account.contractInfo)
@@ -228,7 +346,10 @@ export async function queryAccountCountBetweenCycles(
 ): Promise<number> {
   let accounts: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM accounts WHERE cycle BETWEEN ? AND ?`
+    const sql = config.postgresEnabled
+      ? `SELECT COUNT(*) as "COUNT(*)" FROM accounts WHERE cycle BETWEEN $1 AND $2`
+      : `SELECT COUNT(*) FROM accounts WHERE cycle BETWEEN ? AND ?`
+
     accounts = await db.get(sql, [startCycleNumber, endCycleNumber])
   } catch (e) {
     console.log(e)
@@ -247,8 +368,11 @@ export async function queryAccountsBetweenCycles(
 ): Promise<Account[]> {
   let accounts: DbAccount[] = []
   try {
-    const sql = `SELECT * FROM accounts WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+    const sql = config.postgresEnabled
+      ? `SELECT *, account::TEXT, contractInfo::TEXT, (extract(epoch from "timestamp")*1000)::bigint AS "timestamp" FROM accounts WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+      : `SELECT * FROM accounts WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
     accounts = await db.all(sql, [startCycleNumber, endCycleNumber])
+
     accounts.forEach((account: DbAccount) => {
       if (account.account)
         (account as Account).account = StringUtils.safeJsonParse(account.account) as WrappedEVMAccount
@@ -266,7 +390,9 @@ export async function queryAccountsBetweenCycles(
 
 export async function queryTokensByAddress(address: string, detail = false): Promise<object[]> {
   try {
-    const sql = `SELECT * FROM tokens WHERE ethAddress=?`
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM tokens WHERE ethAddress=$1`
+      : `SELECT * FROM tokens WHERE ethAddress=?`
     const tokens = (await db.all(sql, [address])) as Token[]
     const filterTokens: object[] = []
     if (detail) {
@@ -296,8 +422,12 @@ export async function queryTokenBalance(
   contractAddress: string,
   addressToSearch: string
 ): Promise<{ success: boolean; error?: string; balance?: string }> {
-  const sql = `SELECT * FROM tokens WHERE ethAddress=? AND contractAddress=?`
+  const sql = config.postgresEnabled
+    ? `SELECT * FROM tokens WHERE ethAddress=$1 AND contractAddress=$2`
+    : `SELECT * FROM tokens WHERE ethAddress=? AND contractAddress=?`
+
   const token: Token = await db.get(sql, [addressToSearch, contractAddress])
+
   if (config.verbose) console.log('Token balance', token)
   if (!token) return { success: false, error: 'tokenBalance is not found' }
   return {
@@ -309,7 +439,9 @@ export async function queryTokenBalance(
 export async function queryTokenHolderCount(contractAddress: string): Promise<number> {
   let tokens: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM tokens WHERE contractAddress=?`
+    const sql = config.postgresEnabled
+      ? `SELECT COUNT(*) as "COUNT(*)" FROM tokens WHERE contractAddress=$1`
+      : `SELECT COUNT(*) FROM tokens WHERE contractAddress=?`
     tokens = await db.get(sql, [contractAddress])
   } catch (e) {
     console.log(e)
@@ -322,7 +454,9 @@ export async function queryTokenHolderCount(contractAddress: string): Promise<nu
 export async function queryTokenHolders(skip = 0, limit = 10, contractAddress: string): Promise<Token[]> {
   let tokens: Token[] = []
   try {
-    const sql = `SELECT * FROM tokens WHERE contractAddress=? ORDER BY tokenValue DESC LIMIT ${limit} OFFSET ${skip}`
+    const sql = config.postgresEnabled
+      ? `SELECT * FROM tokens WHERE contractAddress=$1 ORDER BY tokenValue DESC LIMIT ${limit} OFFSET ${skip}`
+      : `SELECT * FROM tokens WHERE contractAddress=? ORDER BY tokenValue DESC LIMIT ${limit} OFFSET ${skip}`
     tokens = await db.all(sql, [contractAddress])
   } catch (e) {
     console.log(e)

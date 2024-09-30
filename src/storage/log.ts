@@ -1,6 +1,6 @@
 /* eslint-disable no-empty */
-import * as db from './sqlite3storage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import * as db from './dbStorage'
+import { extractValues, extractValuesFromArray } from './dbStorage'
 import { config } from '../config/index'
 import { isArray } from 'lodash'
 import { Utils as StringUtils } from '@shardus/types'
@@ -34,10 +34,24 @@ type DbLog = Log & {
 export async function insertLog(log: Log): Promise<void> {
   try {
     const fields = Object.keys(log).join(', ')
-    const placeholders = Object.keys(log).fill('?').join(', ')
     const values = extractValues(log)
-    const sql = 'INSERT OR REPLACE INTO logs (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(log).map((_, i) => `$${i + 1}`).join(', ')
+
+      const sql = `
+        INSERT INTO logs (${fields})
+        VALUES (${placeholders})
+        ON CONFLICT(_id)
+        DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+      `
+      await db.run(sql, values)
+    }
+    else {
+      const placeholders = Object.keys(log).fill('?').join(', ')
+
+      const sql = 'INSERT OR REPLACE INTO logs (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     if (config.verbose) console.log('Successfully inserted Log', log.txHash, log.contractAddress)
   } catch (e) {
     console.log(e)
@@ -52,13 +66,30 @@ export async function insertLog(log: Log): Promise<void> {
 export async function bulkInsertLogs(logs: Log[]): Promise<void> {
   try {
     const fields = Object.keys(logs[0]).join(', ')
-    const placeholders = Object.keys(logs[0]).fill('?').join(', ')
     const values = extractValuesFromArray(logs)
-    let sql = 'INSERT OR REPLACE INTO logs (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < logs.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+
+    if (config.postgresEnabled) {
+      let sql = `INSERT INTO logs (${fields}) VALUES `
+
+      sql += logs.map((_, i) => {
+        const currentPlaceholders = Object.keys(logs[0])
+          .map((_, j) => `$${i * Object.keys(logs[0]).length + j + 1}`)
+          .join(', ')
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT(_id) DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
+    else {
+      const placeholders = Object.keys(logs[0]).fill('?').join(', ')
+      let sql = 'INSERT OR REPLACE INTO logs (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < logs.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
+    }
     console.log('Successfully bulk inserted Logs', logs.length)
   } catch (e) {
     console.log(e)
@@ -75,22 +106,24 @@ function buildLogQueryString(
   const queryParams = []
   const values = []
   if (countOnly) {
-    sql = 'SELECT COUNT(txHash) FROM logs '
-    if (type === 'txs') sql = 'SELECT COUNT(DISTINCT(txHash)) FROM logs '
+    sql = 'SELECT COUNT(txHash) as "COUNT(txHash)" FROM logs '
+    if (type === 'txs') {
+      sql = 'SELECT COUNT(DISTINCT(txHash)) as "COUNT(DISTINCT(txHash))" FROM logs '
+    }
   } else {
-    sql = 'SELECT * FROM logs '
+    sql = `SELECT *${config.postgresEnabled ? ', log::TEXT' : ''} FROM logs `
   }
   const fromBlock = request.fromBlock
   const toBlock = request.toBlock
   if (fromBlock && toBlock) {
-    queryParams.push(`blockNumber BETWEEN ? AND ?`)
+    queryParams.push(config.postgresEnabled ? `blockNumber BETWEEN $${values.length + 1} AND $${values.length + 2}` : `blockNumber BETWEEN ? AND ?`)
     values.push(fromBlock, toBlock)
   } else if (request.blockHash) {
-    queryParams.push(`blockHash=?`)
+    queryParams.push(config.postgresEnabled ? `blockHash=$${values.length + 1}` : `blockHash=?`)
     values.push(request.blockHash)
   }
   if (request.address) {
-    queryParams.push(`contractAddress=?`)
+    queryParams.push(config.postgresEnabled ? `contractAddress=$${values.length + 1}` : `contractAddress=?`)
     values.push(request.address)
   }
 
@@ -99,12 +132,12 @@ function buildLogQueryString(
     if (Array.isArray(topicValue)) {
       const validHexValues = topicValue.filter((value) => typeof value === 'string' && hexPattern.test(value))
       if (validHexValues.length > 0) {
-        const query = `topic${topicIndex} IN (${validHexValues.map(() => '?').join(',')})`
+        const query = `topic${topicIndex} IN (${validHexValues.map((_, ind) => config.postgresEnabled ? `$${values.length + 1 + ind}` : '?').join(',')})`
         queryParams.push(query)
         values.push(...validHexValues)
       }
     } else if (typeof topicValue === 'string' && hexPattern.test(topicValue)) {
-      queryParams.push(`topic${topicIndex}=?`)
+      queryParams.push(config.postgresEnabled ? `topic${topicIndex}=$${values.length + 1}` : `topic${topicIndex}=?`)
       values.push(topicValue)
     }
   }
@@ -175,7 +208,9 @@ export async function queryLogs(
       sqlQueryExtension = ` GROUP BY txHash` + sqlQueryExtension
     }
     if (config.verbose) console.log(sql, inputs)
-    logs = await db.all(sql + sqlQueryExtension, inputs)
+    const finalSql = sql + sqlQueryExtension
+
+    logs = await db.all(finalSql, inputs)
     if (logs.length > 0) {
       logs.forEach((log: DbLog) => {
         if (log.log) (log as Log).log = StringUtils.safeJsonParse(log.log)
@@ -194,7 +229,10 @@ export async function queryLogCountBetweenCycles(
 ): Promise<number> {
   let logs: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM logs WHERE cycle BETWEEN ? AND ?`
+    const sql = config.postgresEnabled
+      ? `SELECT COUNT(*) as "COUNT(*)" FROM logs WHERE cycle BETWEEN $1 AND $2`
+      : `SELECT COUNT(*) FROM logs WHERE cycle BETWEEN ? AND ?`
+
     logs = await db.get(sql, [startCycleNumber, endCycleNumber])
   } catch (e) {
     console.log(e)
@@ -214,7 +252,9 @@ export async function queryLogsBetweenCycles(
 ): Promise<Log[]> {
   let logs: DbLog[] = []
   try {
-    const sql = `SELECT * FROM logs WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+    const sql = config.postgresEnabled
+      ? `SELECT *, log::TEXT FROM logs WHERE cycle BETWEEN $1 AND $2 ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
+      : `SELECT * FROM logs WHERE cycle BETWEEN ? AND ? ORDER BY cycle DESC, timestamp DESC LIMIT ${limit} OFFSET ${skip}`
     logs = await db.all(sql, [startCycleNumber, endCycleNumber])
     if (logs.length > 0) {
       logs.forEach((log: DbLog) => {
@@ -246,17 +286,17 @@ export async function queryLogsByFilter(logFilter: LogFilter, limit = 5000): Pro
   function createSqlFromEvmLogFilter(filter: LogFilter): string {
     const { fromBlock, toBlock, address, topics, blockHash } = filter
 
-    let sql = `SELECT log FROM logs WHERE 1 = 1`
+    let sql = `SELECT log::TEXT FROM logs WHERE 1 = 1`
 
     if (isArray(address) && address.length > 0) {
-      sql += ` AND contractAddress IN (${address.map(() => `?`).join(',')})`
+      sql += ` AND contractAddress IN (${address.map((_, index) => config.postgresEnabled ? `$${queryParams.length + index + 1}` : `?`).join(',')})`
       for (const addr of address) {
         queryParams.push(addr.toLowerCase())
       }
     }
 
     if (blockHash) {
-      sql += ` AND blockHash = ?`
+      sql += ` AND blockHash = ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
       queryParams.push(blockHash.toLowerCase())
     } else {
       if (fromBlock == 'latest') {
@@ -270,7 +310,7 @@ export async function queryLogsByFilter(logFilter: LogFilter, limit = 5000): Pro
         sql += ` AND blockNumber >= 0`
       }
       if (fromBlock && fromBlock !== 'latest' && fromBlock !== 'earliest') {
-        sql += ` AND blockNumber >= ?`
+        sql += ` AND blockNumber >= ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
         queryParams.push(Number(fromBlock))
       }
 
@@ -285,28 +325,28 @@ export async function queryLogsByFilter(logFilter: LogFilter, limit = 5000): Pro
         sql += ` AND blockNumber <= 0`
       }
       if (toBlock && toBlock !== 'latest' && toBlock !== 'earliest') {
-        sql += ` AND blockNumber <= ?`
+        sql += ` AND blockNumber <= ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
         queryParams.push(Number(toBlock))
       }
     }
 
     if (topics[0]) {
-      sql += ` AND topic0 = ?`
+      sql += ` AND topic0 = ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
       queryParams.push(topics[0].toLowerCase())
     }
     if (topics[1]) {
-      sql += ` AND topic1 = ?`
+      sql += ` AND topic1 = ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
       queryParams.push(topics[1].toLowerCase())
     }
     if (topics[2]) {
-      sql += ` AND topic2 = ?`
+      sql += ` AND topic2 = ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
       queryParams.push(topics[2].toLowerCase())
     }
     if (topics[3]) {
-      sql += ` AND topic3 = ?`
+      sql += ` AND topic3 = ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
       queryParams.push(topics[3].toLowerCase())
     }
-    sql += ` ORDER BY blockNumber ASC LIMIT ?;`
+    sql += ` ORDER BY blockNumber ASC LIMIT ${config.postgresEnabled ? `$${queryParams.length + 1}` : `?`}`
     queryParams.push(limit)
 
     if (config.verbose) console.log(`queryLogsByFilter: Query: `, sql, queryParams)

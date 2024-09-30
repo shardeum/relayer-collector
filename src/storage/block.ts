@@ -1,6 +1,6 @@
 import { bigIntToHex, bytesToHex } from '@ethereumjs/util'
 import { config } from '../config'
-import * as db from './sqlite3storage'
+import * as db from './dbStorage'
 import { Block as EthBlock } from '@ethereumjs/block'
 import { Common, Hardfork } from '@ethereumjs/common'
 import { Cycle, DbBlock } from '../types'
@@ -15,10 +15,27 @@ export type ShardeumBlockOverride = EthBlock & { number?: string; hash?: string 
 export async function insertBlock(block: DbBlock): Promise<void> {
   try {
     const fields = Object.keys(block).join(', ')
-    const placeholders = Object.keys(block).fill('?').join(', ')
     const values = db.extractValues(block)
-    const sql = 'INSERT OR REPLACE INTO blocks (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+
+    if (config.postgresEnabled) {
+      const placeholders = Object.keys(block).map((_, i) => `$${i + 1}`).join(', ')
+
+      const sql = `
+        INSERT INTO blocks (${fields})
+        VALUES (${placeholders})
+        ON CONFLICT("number")
+        DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}
+      `
+
+      await db.run(sql, values)
+    }
+    else {
+
+      const placeholders = Object.keys(block).fill('?').join(', ')
+
+      const sql = 'INSERT OR REPLACE INTO blocks (' + fields + ') VALUES (' + placeholders + ')'
+      await db.run(sql, values)
+    }
     /*prettier-ignore*/ if (config.verbose) console.log('block: Successfully inserted block', block.number, block.hash)
   } catch (e) {
     console.log(e)
@@ -29,13 +46,29 @@ export async function insertBlock(block: DbBlock): Promise<void> {
 export async function bulkInsertBlocks(blocks: DbBlock[]): Promise<void> {
   try {
     const fields = Object.keys(blocks[0]).join(', ')
-    const placeholders = Object.keys(blocks[0]).fill('?').join(', ')
     const values = db.extractValuesFromArray(blocks)
-    let sql = 'INSERT OR REPLACE INTO blocks (' + fields + ') VALUES (' + placeholders + ')'
-    for (let i = 1; i < blocks.length; i++) {
-      sql = sql + ', (' + placeholders + ')'
+
+    if (config.postgresEnabled) {
+      let sql = `INSERT INTO blocks (${fields}) VALUES `
+      sql += blocks.map((_, i) => {
+        const currentPlaceholders = Object.keys(blocks[0])
+          .map((_, j) => `$${i * Object.keys(blocks[0]).length + j + 1}`)
+          .join(', ')
+        return `(${currentPlaceholders})`
+      }).join(", ")
+
+      sql += ` ON CONFLICT("number") DO UPDATE SET ${fields.split(', ').map(field => `${field} = EXCLUDED.${field}`).join(', ')}`
+
+      await db.run(sql, values)
+    } else {
+      const placeholders = Object.keys(blocks[0]).fill('?').join(', ')
+
+      let sql = 'INSERT OR REPLACE INTO blocks (' + fields + ') VALUES (' + placeholders + ')'
+      for (let i = 1; i < blocks.length; i++) {
+        sql = sql + ', (' + placeholders + ')'
+      }
+      await db.run(sql, values)
     }
-    await db.run(sql, values)
     /*prettier-ignore*/ console.log('block: Successfully bulk inserted blocks', blocks.length)
   } catch (e) {
     console.log(e)
@@ -65,7 +98,7 @@ export async function upsertBlocksForCycleCore(
     const newBlockTimestampInSecond =
       startTimeInSeconds +
       (blockNumber - config.blockIndexing.initBlockNumber - firstBlockNumberForCycle) *
-        config.blockIndexing.blockProductionRate
+      config.blockIndexing.blockProductionRate
     const newBlockTimestamp = newBlockTimestampInSecond * 1000
     const block = createNewBlock(blockNumber, newBlockTimestamp)
     /*prettier-ignore*/ if (config.verbose) console.log(`Block number: ${block.header.number}, timestamp: ${block.header.timestamp}, hash: ${bytesToHex(block.header.hash())}`)
@@ -89,9 +122,12 @@ export async function upsertBlocksForCycleCore(
 export async function queryBlockByNumber(blockNumber: number): Promise<DbBlock | null> {
   /*prettier-ignore*/ if (config.verbose) console.log('block: Querying block by number', blockNumber)
   try {
-    const sql = 'SELECT * FROM blocks WHERE number = ?'
+    const sql = config.postgresEnabled
+      ? 'SELECT *, readableBlock::TEXT FROM blocks WHERE number = $1'
+      : 'SELECT * FROM blocks WHERE number = ?'
     const values = [blockNumber]
     const block: DbBlock = await db.get(sql, values)
+
     if (block && block.timestamp > Date.now() - blockQueryDelayInMillis()) {
       return null
     }
@@ -105,7 +141,8 @@ export async function queryBlockByNumber(blockNumber: number): Promise<DbBlock |
 export async function queryBlockByTag(tag: 'earliest' | 'latest'): Promise<DbBlock | null> {
   try {
     if (tag === 'earliest') {
-      const block: DbBlock = await db.get(`SELECT * FROM blocks WHERE number = 0`)
+      const sql = `SELECT *${config.postgresEnabled ? ', readableBlock::TEXT' : ''} FROM blocks WHERE number = 0`
+      const block: DbBlock = await db.get(sql)
       return block
     }
     const block: DbBlock = await getLatestBlock()
@@ -119,9 +156,12 @@ export async function queryBlockByTag(tag: 'earliest' | 'latest'): Promise<DbBlo
 export async function queryBlockByHash(blockHash: string): Promise<DbBlock | null> {
   /*prettier-ignore*/ if (config.verbose) console.log('block: Querying block by hash', blockHash)
   try {
-    const sql = 'SELECT * FROM blocks WHERE hash = ?'
+    const sql = config.postgresEnabled
+      ? 'SELECT *, readableBlock::TEXT FROM blocks WHERE hash = $1'
+      : 'SELECT * FROM blocks WHERE hash = ?'
     const values = [blockHash]
     const block: DbBlock = await db.get(sql, values)
+
     if (block && block.timestamp > Date.now() - blockQueryDelayInMillis()) {
       return null
     }
@@ -202,7 +242,7 @@ async function convertToReadableBlock(block: EthBlock): Promise<ShardeumBlockOve
 export async function queryBlockCount(): Promise<number> {
   let blocks: { 'COUNT(*)': number } = { 'COUNT(*)': 0 }
   try {
-    const sql = `SELECT COUNT(*) FROM blocks`
+    const sql = `SELECT COUNT(*) as "COUNT(*)" FROM blocks`
     blocks = await db.get(sql, [])
   } catch (e) {
     console.log(e)
@@ -214,7 +254,7 @@ export async function queryBlockCount(): Promise<number> {
 
 export async function queryLatestBlocks(count: number): Promise<DbBlock[]> {
   try {
-    const sql = `SELECT * FROM blocks ORDER BY number DESC LIMIT ${count}`
+    const sql = `SELECT *${config.postgresEnabled ? ', readableBlock::TEXT' : ''} FROM blocks ORDER BY number DESC LIMIT ${count}`
     const blocks: DbBlock[] = await db.all(sql)
     if (config.verbose) console.log('block latest', blocks)
     return blocks
