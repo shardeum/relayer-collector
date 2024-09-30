@@ -95,7 +95,7 @@ export const transformCycle = async (cycle: Cycle) => {
           const fields = ["nominator", "publicKey", "joinedTime", "nodeVersion"].map((e) => `"${e}"`).join(", ")
 
           sql = `INSERT INTO analyticsCycle (${fields})
-          VALUES ($1, $2, $3)
+          VALUES ($1, $2, $3, $4)
         `
 
           for (let index = 0; index < value.length; index++) {

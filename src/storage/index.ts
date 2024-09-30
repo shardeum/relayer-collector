@@ -26,7 +26,7 @@ export const initializeDB = async (): Promise<void> => {
       'CREATE TABLE if not exists cycles ("cycleMarker" TEXT NOT NULL UNIQUE PRIMARY KEY, "counter" BIGINT NOT NULL, "cycleRecord" JSONB NOT NULL)'
     )
     await db.runCreate(
-      'CREATE TABLE if not exists analyticsCycle ("nominator" TEXT, "publicKey" TEXT, "nodeId" TEXT, "joinedTime" TIMESTAMPTZ, "leftTime" TIMESTAMPTZ, "activeStartCycle" BIGINT, "activeEndCycle" BIGINT, "nodeVersion" TEXT)'
+      'CREATE TABLE if not exists analyticsCycle ("nominator" TEXT, "publicKey" TEXT, "nodeId" TEXT, "joinedTime" TIMESTAMPTZ, "leftTime" TIMESTAMPTZ, "activeStartCycle" BIGINT, "activeEndCycle" BIGINT, "nodeVersion" TEXT DEFAULT NULL)'
     )
     await db.runCreate('CREATE INDEX if not exists cycles_idx ON cycles ("counter" DESC)')
     await db.runCreate(
