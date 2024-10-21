@@ -17,6 +17,7 @@ export enum collectorMode {
 export interface Config {
   env: string
   host: string
+  dbPath: string
   dataLogWrite: boolean
   dataLogWriter: {
     dirName: string
@@ -78,6 +79,7 @@ export interface Config {
 let config: Config = {
   env: process.env.SHARDEUM_COLLECTOR_MODE || envEnum.PROD, //default safe if env is not set
   host: process.env.HOST || '127.0.0.1',
+  dbPath: process.env.COLLECTOR_DB_PATH || "db.sqlite3",
   dataLogWrite: false,
   dataLogWriter: {
     dirName: 'data-logs',
@@ -91,7 +93,7 @@ let config: Config = {
     secretKey: '',
   },
   hashKey: '69fa4195670576c0160d660c3be36556ff8d504725be8a59b5a96509e0c994bc',
-  enableCollectorSocketServer: false,
+  enableCollectorSocketServer: Boolean(process.env.ENABLE_COLLECTOR_SOCKET_SERVER) || false,
   port: {
     collector: process.env.COLLECTOR_PORT || '4444',
     server: process.env.PORT || '6101',
@@ -119,7 +121,7 @@ let config: Config = {
   enableTxHashCache: false,
   findTxHashInOriginalTx: false,
   enableShardeumIndexer: true,
-  shardeumIndexerSqlitePath: 'shardeum.sqlite',
+  shardeumIndexerSqlitePath: process.env.SERVICE_VALIDATOR_DB_PATH || "db.sqlite3",
   blockIndexing: {
     enabled: true,
     blockProductionRate: 6,
