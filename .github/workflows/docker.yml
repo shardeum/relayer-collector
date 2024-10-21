@@ -35,6 +35,14 @@ jobs:
       - name: Get short commit hash
         id: get-short-hash
         run: echo "SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - name: Determine branch name
+        id: get-branch-name
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "BRANCH_NAME=${{ github.head_ref }}" >> $GITHUB_ENV  # Source branch of the PR
+          else
+            echo "BRANCH_NAME=${{ github.ref_name }}" >> $GITHUB_ENV  # Actual branch name for push events
+          fi
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@v6
@@ -42,10 +50,10 @@ jobs:
           context: .
           file: Dockerfile
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ env.SHORT_COMMIT_HASH }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.BRANCH_NAME }}-${{ env.SHORT_COMMIT_HASH }}
           labels: |
             version=${{ env.SHORT_COMMIT_HASH }}
-            branch=${{ github.ref_name }}
+            branch=${{ env.BRANCH_NAME }}
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1
         with:
