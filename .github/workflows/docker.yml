@@ -32,11 +32,19 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Declare version variables
-        shell: bash
+      - name: Get short commit hash and determine branch name
+        id: set-env-vars
         run: |
-          echo "SHORT_COMMIT_HASH=$(git rev-parse --short "$GITHUB_SHA")" >> "$GITHUB_ENV"
-          echo "BRANCH_NAME=$(echo ${GITHUB_REF#refs/heads/})" >> "$GITHUB_ENV"
+          # Get short commit hash
+          echo "Branch: $(git rev-parse --short HEAD)"
+          echo "SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+          # Determine branch name
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "BRANCH_NAME=${{ github.head_ref }}" >> $GITHUB_ENV  # Source branch of the PR
+          else
+            echo "BRANCH_NAME=${{ github.ref_name }}" >> $GITHUB_ENV  # Actual branch name for push events
+          fi
       - name: Echo step
         run: |
           echo "Branch: ${{ env.SHORT_COMMIT_HASH }}"

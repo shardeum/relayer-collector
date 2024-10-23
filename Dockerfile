@@ -1,10 +1,7 @@
 # syntax=docker/dockerfile:1
 
-## global args
-ARG NODE_VERSION=18.16.1
-
-FROM node:${NODE_VERSION}
-SHELL [ "/bin/bash", "-cex" ]
+FROM node:18.16.1-alpine
+SHELL [ "/bin/sh", "-cex" ]
 
 # Create app directory
 WORKDIR /usr/src/app
