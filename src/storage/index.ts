@@ -12,7 +12,7 @@ export const isBlockIndexingEnabled = (): boolean => {
 
 export const initializeDB = async (): Promise<void> => {
   await db.init({
-    defaultDbSqlitePath: 'db.sqlite3',
+    defaultDbSqlitePath: config.dbPath,
     enableShardeumIndexer: config.enableShardeumIndexer,
     shardeumIndexerSqlitePath: config.shardeumIndexerSqlitePath,
   })
